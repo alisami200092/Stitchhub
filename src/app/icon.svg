@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Background subtle roundrect -->
+  <rect width="32" height="32" rx="8" fill="#000000" />
+  
+  <!-- Stylized Stitch Hub S-icon with luxury gold gradients -->
+  <defs>
+    <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b38e20" />
+      <stop offset="50%" stop-color="#ebd06f" />
+      <stop offset="100%" stop-color="#b38e20" />
+    </linearGradient>
+  </defs>
+
+  <!-- Hexagonal frame border -->
+  <polygon points="16,4 26,10 26,22 16,28 6,22 6,10" fill="none" stroke="url(#gold-grad)" stroke-width="1.5" />
+  
+  <!-- Intertwining stitch thread forming an 'S' -->
+  <path d="M11 11 C 11 9, 21 7, 21 12 C 21 17, 11 15, 11 20 C 11 25, 21 23, 21 21" 
+        fill="none" 
+        stroke="url(#gold-grad)" 
+        stroke-width="3" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" />
+        
+  <!-- Core golden needle/thread accent point -->
+  <circle cx="16" cy="16" r="1.5" fill="#ffffff" />
+</svg>

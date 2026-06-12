@@ -1,0 +1,1 @@
+ALTER TABLE "email_logs" ADD COLUMN "agent_override" boolean DEFAULT false NOT NULL;
