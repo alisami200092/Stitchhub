@@ -20,6 +20,55 @@ export async function GET() {
       .where(eq(emailLogs.userId, user.id))
       .orderBy(desc(emailLogs.createdAt)); // Sort so freshest transactions display at top
 
+    // Self-healing database logic for historical escalations
+    for (const log of logs) {
+      let isEscalated = false;
+      if (log.aiResponseDraft) {
+        try {
+          const parsed = JSON.parse(log.aiResponseDraft);
+          if (Array.isArray(parsed)) {
+            isEscalated = parsed.some(
+              (msg) =>
+                msg.role === "assistant" &&
+                !msg.isHuman &&
+                (msg.content.toLowerCase().includes("escalat") ||
+                  msg.content.toLowerCase().includes("stitchhub team") ||
+                  msg.content.toLowerCase().includes("admin team") ||
+                  msg.content.toLowerCase().includes("human admin") ||
+                  msg.content.toLowerCase().includes("operations manager") ||
+                  msg.content.toLowerCase().includes("custom mill team"))
+            );
+          } else {
+            const content = String(log.aiResponseDraft).toLowerCase();
+            isEscalated =
+              content.includes("escalat") ||
+              content.includes("stitchhub team") ||
+              content.includes("admin team") ||
+              content.includes("human admin") ||
+              content.includes("operations manager") ||
+              content.includes("custom mill team");
+          }
+        } catch {
+          const content = String(log.aiResponseDraft).toLowerCase();
+          isEscalated =
+            content.includes("escalat") ||
+            content.includes("stitchhub team") ||
+            content.includes("admin team") ||
+            content.includes("human admin") ||
+            content.includes("operations manager") ||
+            content.includes("custom mill team");
+        }
+      }
+
+      if (isEscalated && log.status !== "review_required") {
+        log.status = "review_required";
+        await db
+          .update(emailLogs)
+          .set({ status: "review_required" })
+          .where(eq(emailLogs.id, log.id));
+      }
+    }
+
     return NextResponse.json({ logs });
   } catch (error) {
     console.error("Inbox data mapping sync break failure:", error);

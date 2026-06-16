@@ -14,7 +14,7 @@ interface CartState {
   cart: CartItem[];
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
-  addToCart: (product: Product, quantity: number, size: string, customNotes: string) => void;
+  addToCart: (product: Product, quantity: number, size: string, customNotes: string, skipOpen?: boolean) => void;
   removeFromCart: (title: string, size: string) => void;
   updateQuantity: (title: string, size: string, quantity: number) => void;
   clearCart: () => void;
@@ -32,7 +32,7 @@ export const useCartStore = create<CartState>()(
 
       setIsOpen: (open) => set({ isOpen: open }),
 
-      addToCart: (product, quantity, size, customNotes) => {
+      addToCart: (product, quantity, size, customNotes, skipOpen) => {
         const { cart } = get();
         // If the same product+size already exists, bump the quantity
         // instead of creating a duplicate line item.
@@ -42,21 +42,13 @@ export const useCartStore = create<CartState>()(
 
         let newCart: CartItem[];
         if (existingIndex > -1) {
-          newCart = cart.map((item, i) =>
-            i === existingIndex
-              ? {
-                  ...item,
-                  quantity: item.quantity + quantity,
-                  customNotes: customNotes || item.customNotes,
-                }
-              : item
-          );
+          newCart = cart;
         } else {
           newCart = [...cart, { product, quantity, size, customNotes }];
         }
 
-        // Open the cart drawer so the user sees the item was added.
-        set({ cart: newCart, isOpen: true });
+        // Open the cart drawer so the user sees the item was added, unless skipOpen is true.
+        set({ cart: newCart, isOpen: skipOpen ? false : true });
       },
 
       removeFromCart: (title, size) => {

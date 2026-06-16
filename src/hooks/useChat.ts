@@ -57,6 +57,23 @@ export function useChat() {
               mappedStatus = "draft_sourcing";
             }
 
+            // Check if any assistant message has escalation keywords (e.g. from historical runs)
+            const hasEscalationKeyword = history.some(
+              (msg) =>
+                msg.role === "assistant" &&
+                !msg.isHuman &&
+                (msg.content.toLowerCase().includes("escalat") ||
+                  msg.content.toLowerCase().includes("stitchhub team") ||
+                  msg.content.toLowerCase().includes("admin team") ||
+                  msg.content.toLowerCase().includes("human admin") ||
+                  msg.content.toLowerCase().includes("operations manager") ||
+                  msg.content.toLowerCase().includes("custom mill team"))
+            );
+
+            if (hasEscalationKeyword) {
+              mappedStatus = "review_required";
+            }
+
             return {
               id: log.id,
               subject: log.subject,

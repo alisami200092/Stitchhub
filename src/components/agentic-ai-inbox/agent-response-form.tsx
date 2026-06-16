@@ -138,19 +138,6 @@ export default function CheckoutForm({
         </div>
       </div>
 
-      {/* Editor Toolbar */}
-      <div className="flex items-center gap-1.5 border-b border-zinc-800 pb-3">
-        {["B", "I", "U", "U2", ">", "S", "⋮"].map((action, i) => (
-          <button
-            key={i}
-            type="button"
-            className="h-8 w-8 flex items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600 transition-colors text-xs font-bold cursor-pointer"
-          >
-            {action === "U2" ? <span className="underline decoration-double">U</span> : action}
-          </button>
-        ))}
-      </div>
-
       {/* Message Editor */}
       <div className="flex-1 min-h-75">
         <textarea

@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     let currentStatus = "draft_sourcing";
     if (threadId) {
       const logs = await db
-        .select({ 
+        .select({
           agentOverride: emailLogs.agentOverride,
           status: emailLogs.status
         })
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           model: "stitchhub_v5", // Fine-tuned GGUF
           messages: messages,
-          stream: false, 
+          stream: false,
         }),
       });
 
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     if (!isOverridden) {
       // 🛡️ StitchHub Business Logic Interceptor Middleware
       let aiResponse = replyContent; // The raw string returned from your Ollama stream
-      
+
       const userMessage = messages[messages.length - 1]?.content || "";
       const clientPrompt = userMessage.toLowerCase();
       const lowercaseAIResponse = aiResponse.toLowerCase();
@@ -117,7 +117,7 @@ export async function POST(req: Request) {
     // 3. Append the assistant reply and update database record atomically
     if (threadId) {
       const finalMessages = [...messages, { role: "assistant" as const, content: replyContent, isHuman: false }];
-      
+
       await db
         .update(emailLogs)
         .set({
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
 
     // Send the reply back to the React frontend
     return NextResponse.json({ reply: replyContent });
-    
+
   } catch (error) {
     console.error("Chat API Core Error:", error);
     return NextResponse.json(

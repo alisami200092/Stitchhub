@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { emailLogs, invoices } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { generateSupplierPrompt } from "@/utils/prompts";
 
 export async function POST(req: Request) {
   try {
@@ -39,35 +40,53 @@ export async function POST(req: Request) {
     const cartManifest = userInvoices[0]?.itemsSnapshot || [];
 
     // 4. Construct system prompt for the Supplier Agent
-    const supplierPrompt = `
-      System Prompt: You are the StitchHub B2B Head of Procurement. Your objective is to translate customer accessory/apparel manifests into a formal, highly professional wholesale inventory procurement request.
+    const supplierPrompt = generateSupplierPrompt(cartManifest as any[], log.body || "");
 
-      CUSTOMER REQUISITION MANIFEST:
-      ${JSON.stringify(cartManifest, null, 2)}
+    // 5. Query local Ollama model stitchhub_v5 (with Gemini fallback)
+    let vendorPoOutput = "";
+    try {
+      const ollamaResponse = await fetch("http://localhost:11434/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "stitchhub_v5",
+          prompt: supplierPrompt,
+          stream: false,
+        }),
+        signal: AbortSignal.timeout(3000), // Timeout fast to fall back to Gemini
+      });
 
-      CUSTOMER SPECIFICATIONS & CONSTRAINTS:
-      "${log.body || "No specific instructions declared."}"
+      if (!ollamaResponse.ok) {
+        throw new Error("Ollama procurement agent reasoning cycle failed.");
+      }
 
-      Please output a formalized wholesale purchase order (PO) detailing distributor supply-chain assignments, item sizes/quantities allocations, warehouse packaging tags, and factory production queuing commands.
-    `;
+      const ollamaData = await ollamaResponse.json();
+      vendorPoOutput = ollamaData.response;
+    } catch (ollamaError) {
+      console.warn("Ollama failed, attempting Gemini fallback...", ollamaError);
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error("Ollama inference failed and no GEMINI_API_KEY is configured.");
+      }
 
-    // 5. Query local Ollama model stitchhub_v5
-    const ollamaResponse = await fetch("http://localhost:11434/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "stitchhub_v5",
-        prompt: supplierPrompt,
-        stream: false,
-      }),
-    });
+      const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: supplierPrompt }] }],
+          }),
+        }
+      );
 
-    if (!ollamaResponse.ok) {
-      throw new Error("Ollama procurement agent reasoning cycle failed.");
+      if (!geminiResponse.ok) {
+        throw new Error(`Gemini fallback also failed: ${geminiResponse.statusText}`);
+      }
+
+      const geminiData = await geminiResponse.json();
+      vendorPoOutput = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
     }
-
-    const ollamaData = await ollamaResponse.json();
-    const vendorPoOutput = ollamaData.response;
 
     const mockTrackingId = `TRK-PO-${Math.floor(100000 + Math.random() * 900000)}`;
 

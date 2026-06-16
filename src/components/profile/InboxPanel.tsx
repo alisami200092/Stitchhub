@@ -57,6 +57,14 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
   const [isPaying, setIsPaying] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const isEscalated = activeThread?.status === "review_required";
+  const adminIntervened = activeThread?.agentOverride;
+  const lastMessage = activeThread?.messages && activeThread.messages.length > 0
+    ? activeThread.messages[activeThread.messages.length - 1]
+    : null;
+  const adminReplied = !!(lastMessage && lastMessage.role === "assistant" && lastMessage.isHuman);
+  const isLocked = isEscalated && !adminIntervened && !adminReplied;
+
   // Auto scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -125,7 +133,7 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
             let badgeLabel = "Draft";
             if (isReview) {
               badgeClass = "bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse";
-              badgeLabel = "Under Review";
+              badgeLabel = "Escalated";
             } else if (isApproved) {
               badgeClass = "bg-[#d4af37]/10 text-[#d4af37] border border-[#d4af37]/20";
               badgeLabel = "Quote Ready";
@@ -181,12 +189,20 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
                 <span className="text-[9px] font-mono text-[#d4af37] uppercase tracking-wider">Subject</span>
                 <h2 className="text-sm font-bold text-white mt-0.5 leading-snug">{activeThread.subject}</h2>
               </div>
-              {activeThread.agentOverride && (
-                <div className="flex items-center gap-1.5 bg-red-950/20 border border-red-500/30 px-2 py-0.5 rounded text-red-400 font-mono text-[8px] font-bold tracking-wider uppercase animate-pulse">
-                  <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping shrink-0" />
-                  <span>Human Support Active</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {isEscalated && (
+                  <div className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/30 px-2.5 py-1 rounded text-red-400 font-mono text-[8px] font-bold tracking-wider uppercase animate-pulse">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                    <span>Escalated to Admin</span>
+                  </div>
+                )}
+                {activeThread.agentOverride && (
+                  <div className="flex items-center gap-1.5 bg-red-950/20 border border-red-500/30 px-2 py-0.5 rounded text-red-400 font-mono text-[8px] font-bold tracking-wider uppercase animate-pulse">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping shrink-0" />
+                    <span>Human Support Active</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Conversation Log (Scrollable Area) */}
@@ -243,16 +259,25 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
 
             {/* Pinned Status Banners / Cards */}
             <div className="shrink-0 space-y-2 mb-2">
-              {activeThread.status === "review_required" && !activeThread.agentOverride && (
+              {isLocked && (
                 <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-3.5 text-xs text-red-200/90 flex items-center gap-3 animate-pulse">
                   <span className="h-2 w-2 rounded-full bg-red-500 animate-ping shrink-0" />
                   <span className="font-medium leading-relaxed">
-                    Verifying order specs against factory floor capacity...
+                    This request has been escalated to our Admin Team and is currently under review. Chat is locked until an admin replies or intervenes.
                   </span>
                 </div>
               )}
 
-              {activeThread.agentOverride && activeThread.status === "review_required" && (
+              {!isLocked && isEscalated && !activeThread.agentOverride && (
+                <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-3.5 text-xs text-emerald-200/90 flex items-center gap-3">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <span className="font-medium leading-relaxed">
+                    An admin has responded. Direct conversation is temporarily unlocked.
+                  </span>
+                </div>
+              )}
+
+              {activeThread.agentOverride && isEscalated && (
                 <div className="bg-red-950/15 border border-red-500/25 rounded-xl p-3.5 text-xs text-red-200/90 flex items-center gap-3 shadow-[0_0_12px_rgba(239,68,68,0.1)]">
                   <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" />
                   <span className="font-medium leading-relaxed">
@@ -313,13 +338,13 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    if (activeThread.status !== "review_required" || activeThread.agentOverride) handleSend();
+                    if (!isLocked) handleSend();
                   }
                 }}
-                disabled={activeThread.status === "review_required" && !activeThread.agentOverride}
+                disabled={isLocked}
                 placeholder={
-                  activeThread.status === "review_required" && !activeThread.agentOverride
-                    ? "Chat is locked during review." 
+                  isLocked
+                    ? "Chat is locked until an admin replies." 
                     : activeThread.agentOverride
                       ? "Type your response to Operations Manager..."
                       : "Type your response to StitchHub Agent..."
@@ -332,7 +357,7 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
               />
               <button
                 onClick={handleSend}
-                disabled={isTyping || !replyText.trim() || (activeThread.status === "review_required" && !activeThread.agentOverride)}
+                disabled={isTyping || !replyText.trim() || isLocked}
                 className={`h-12 w-12 rounded-full transition-all shrink-0 flex items-center justify-center cursor-pointer disabled:cursor-not-allowed ${
                   activeThread.agentOverride
                     ? "bg-red-600 hover:bg-red-500 text-white disabled:opacity-40 disabled:hover:bg-red-600 shadow-[0_0_15px_rgba(239,68,68,0.2)]"

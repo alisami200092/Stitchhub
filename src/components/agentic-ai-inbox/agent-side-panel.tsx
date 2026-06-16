@@ -18,6 +18,12 @@ interface CheckoutSidebarProps {
   message: string; // Message text used to detect escalation patterns
   attachedFiles: File[];
   setAttachedFiles: (files: File[]) => void;
+  onAddSuggestion: (text: string) => void;
+  isMergingSuggestion: boolean;
+  suggestions: string[];
+  isFetchingSuggestions: boolean;
+  fetchAiSuggestions: () => void;
+  hasFetchedSuggestions: boolean;
 }
 
 // Side panel — handles form submission, displays sourcing cart, attached files, and AI suggestions
@@ -29,6 +35,12 @@ export default function CheckoutSidebar({
   message,
   attachedFiles,
   setAttachedFiles,
+  onAddSuggestion,
+  isMergingSuggestion,
+  suggestions,
+  isFetchingSuggestions,
+  fetchAiSuggestions,
+  hasFetchedSuggestions,
 }: CheckoutSidebarProps) {
   
   // Detect escalation from AI response — checks for PAUSE action tag or admin escalation keyword
@@ -38,16 +50,49 @@ export default function CheckoutSidebar({
     <div className="space-y-6">
       {/* AI-suggested actions card — prepopulated follow-ups the agent can click */}
       <div className="bg-[#121418] border border-zinc-900 rounded-xl p-5 space-y-3.5">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500">
-          Suggestions
-        </h4>
+        <div className="flex justify-between items-center">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+            Suggestions
+          </h4>
+          {cart.length > 0 && (
+            <button
+              type="button"
+              onClick={fetchAiSuggestions}
+              disabled={isFetchingSuggestions || hasFetchedSuggestions || isMergingSuggestion}
+              className="text-[10px] text-[#d4af37] hover:underline font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+            >
+              {isFetchingSuggestions ? (
+                <>
+                  <span className="inline-block animate-spin h-2.5 w-2.5 border border-[#d4af37] border-t-transparent rounded-full shrink-0" />
+                  Analyzing...
+                </>
+              ) : hasFetchedSuggestions ? (
+                "✦ Suggestions Loaded"
+              ) : (
+                "✦ Get AI Suggestions"
+              )}
+            </button>
+          )}
+        </div>
         <ul className="space-y-2 text-sm">
-          <li className="text-[#d4af37] font-medium hover:underline cursor-pointer flex items-center gap-2">
-            <span>✦</span> Draft custom follow-up worksheet
-          </li>
-          <li className="text-[#d4af37] font-medium hover:underline cursor-pointer flex items-center gap-2">
-            <span>✦</span> Upsell suggestions (insulated flasks, minimal wallets)
-          </li>
+          {isMergingSuggestion ? (
+            <div className="flex items-center gap-2.5 py-1.5 text-xs text-zinc-400">
+              <span className="inline-block animate-spin h-3.5 w-3.5 border-2 border-[#d4af37] border-t-transparent rounded-full shrink-0" />
+              <span className="font-medium">Integrating suggestion contextually...</span>
+            </div>
+          ) : (
+            suggestions.map((sugText, i) => (
+              <li
+                key={i}
+                onClick={() => !isMergingSuggestion && onAddSuggestion(sugText)}
+                className={`text-[#d4af37] font-medium flex items-center gap-2 group transition-all ${
+                  isMergingSuggestion ? "opacity-50 cursor-not-allowed" : "hover:underline cursor-pointer"
+                }`}
+              >
+                <span className="group-hover:scale-125 transition-transform">✦</span> {sugText}
+              </li>
+            ))
+          )}
         </ul>
       </div>
 

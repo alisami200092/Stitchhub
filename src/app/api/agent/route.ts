@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { emailLogs, invoices } from "@/db/schema";
 // 🎯 Import the modern BrevoClient constructor directly
 import { BrevoClient } from '@getbrevo/brevo';
+import { AGENT_SYSTEM_PROMPT } from "@/utils/prompts";
 
 /**
  * POST /api/agent
@@ -51,23 +52,51 @@ export async function POST(req: Request) {
       "${message || "No specific instructions declared."}"
     `;
 
-    /* ── Ollama inference call: query local stitchhub_v5 model ── */
-    const ollamaResponse = await fetch("http://localhost:11434/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "stitchhub_v5",
-        prompt: userContextPrompt,
-        stream: false,
-      }),
-    });
+    /* ── Ollama inference call: query local stitchhub_v5 model (with Gemini fallback) ── */
+    let generatedAiResponse = "";
+    try {
+      const ollamaResponse = await fetch("http://localhost:11434/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "stitchhub_v5",
+          prompt: userContextPrompt,
+          stream: false,
+        }),
+        signal: AbortSignal.timeout(3000), // Timeout fast to fall back to Gemini
+      });
 
-    if (!ollamaResponse.ok) {
-      throw new Error("Local custom Ollama inference agent failed to respond.");
+      if (!ollamaResponse.ok) {
+        throw new Error("Local custom Ollama inference agent failed to respond.");
+      }
+
+      const ollamaData = await ollamaResponse.json();
+      generatedAiResponse = ollamaData.response;
+    } catch (ollamaError) {
+      console.warn("Ollama failed, attempting Gemini fallback...", ollamaError);
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error("Ollama inference failed and no GEMINI_API_KEY is configured.");
+      }
+
+      const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `${AGENT_SYSTEM_PROMPT}\n\n${userContextPrompt}` }] }],
+          }),
+        }
+      );
+
+      if (!geminiResponse.ok) {
+        throw new Error(`Gemini fallback also failed: ${geminiResponse.statusText}`);
+      }
+
+      const geminiData = await geminiResponse.json();
+      generatedAiResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
     }
-
-    const ollamaData = await ollamaResponse.json();
-    let generatedAiResponse = ollamaData.response;
 
     /* ── Escalation detection: check for PAUSE tag or admin escalation keyword ── */
     let logStatus = "draft_sourcing";
@@ -139,22 +168,22 @@ export async function POST(req: Request) {
     if (user.email) {
       try {
         // 🎯 FIX: Instantiate with the configuration options object directly inside the constructor
-        const brevo = new BrevoClient({ 
-          apiKey: process.env.BREVO_API_KEY as string 
+        const brevo = new BrevoClient({
+          apiKey: process.env.BREVO_API_KEY as string
         });
 
         // Fire the transmission directly through the transactionalEmails namespace module
         await brevo.transactionalEmails.sendTransacEmail({
-          subject: logStatus === "review_required" 
+          subject: logStatus === "review_required"
             ? `[Action Required] Sourcing Matrix Intercepted`
             : `Update: Sourcing Requisition Processed`,
-          sender: { 
-            name: "StitchHub Agent", 
-            email: "cheetayfastdl345@gmail.com" 
+          sender: {
+            name: "StitchHub Agent",
+            email: "cheetayfastdl345@gmail.com"
           },
-          to: [{ 
-            email: user.email, 
-            name: userName 
+          to: [{
+            email: user.email,
+            name: userName
           }],
           htmlContent: `
   <!DOCTYPE html>
@@ -215,8 +244,8 @@ export async function POST(req: Request) {
     }
 
     /* ── Success response: return AI draft and final status ── */
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       generatedMessage: generatedAiResponse,
       status: logStatus
     });

@@ -107,7 +107,12 @@ export default function ProductDetailPage({ params }: PageProps) {
             <VolumeStepper minQty={detail.minQty} currentQty={detail.currentQty} onChange={detail.setQuantity} />
 
             {/* Add-to-cart button with current qty snapshot */}
-            <AddToCartButton currentQty={detail.currentQty} onAdd={detail.handleAddToCart} />
+            <AddToCartButton
+              currentQty={detail.currentQty}
+              onAdd={detail.handleAddToCart}
+              onCheckout={detail.handleCheckout}
+              isInCart={detail.isInCart}
+            />
           </div>
         </div>
       </section>
