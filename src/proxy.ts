@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { updateSession } from "@/utils/supabase/middleware";
 import { ADMIN_EMAILS } from "@/utils/admin";
+import { SUPPLIER_EMAILS } from "@/utils/supplier";
 
 export async function proxy(request: NextRequest) {
   const { supabaseResponse, user } = await updateSession(request);
@@ -14,6 +15,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/products/checkout") || 
     pathname.startsWith("/admin") ||
     pathname.startsWith("/api/admin") ||
+    pathname.startsWith("/supplier") ||
+    pathname.startsWith("/api/supplier") ||
     (pathname === "/api/products" && method === "POST");
 
   // If trying to access a secure dashboard and aren't logged in, redirect to login
@@ -41,6 +44,26 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // Restrict /supplier and supplier API routes to hardcoded SUPPLIER_EMAILS or ADMIN_EMAILS
+  const isSupplierOperation = 
+    pathname.startsWith("/supplier") || 
+    pathname.startsWith("/api/supplier");
+
+  if (isSupplierOperation && isLoggedIn) {
+    const userEmail = user.email?.toLowerCase();
+    const isAuthorized = userEmail && (
+      SUPPLIER_EMAILS.includes(userEmail) || 
+      ADMIN_EMAILS.includes(userEmail)
+    );
+    if (!isAuthorized) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Forbidden. Supplier access required." }, { status: 403 });
+      }
+      // Redirect unauthorized users to the homepage
+      return NextResponse.redirect(new URL("/", request.nextUrl));
+    }
+  }
+
   return supabaseResponse;
 }
 
@@ -50,6 +73,8 @@ export const config = {
     "/products/checkout/:path*",
     "/admin/:path*",
     "/api/admin/:path*",
-    "/api/products"
+    "/api/products",
+    "/supplier/:path*",
+    "/api/supplier/:path*"
   ],
 };

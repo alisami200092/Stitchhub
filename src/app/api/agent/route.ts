@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
-import { emailLogs, invoices } from "@/db/schema";
+import { emailLogs, invoices, supplierBids } from "@/db/schema";
 // 🎯 Import the modern BrevoClient constructor directly
 import { BrevoClient } from '@getbrevo/brevo';
 import { AGENT_SYSTEM_PROMPT } from "@/utils/prompts";
@@ -163,6 +163,22 @@ export async function POST(req: Request) {
       status: "unpaid",
       itemsSnapshot: cart,
     });
+
+    // STEP 3: MOCK RE-ROUTING TO SUPPLIER PORTAL
+    if (logStatus === "draft_sourcing") {
+      for (const item of cart) {
+        const basePrice = item.product?.price || 15.00;
+        const quotedCost = basePrice * 0.9; // 10% discount for bulk
+        
+        await db.insert(supplierBids).values({
+          orderId: generatedInvoiceNumber,
+          supplierName: "Test Supplier Alpha",
+          quotedCostPerUnit: quotedCost.toFixed(2),
+          estimatedDeliveryDays: 14,
+          status: "pending",
+        });
+      }
+    }
 
     /* ── 📨 Modern Brevo SDK Dispatch Layer ── */
     if (user.email) {

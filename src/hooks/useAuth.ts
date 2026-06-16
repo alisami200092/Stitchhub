@@ -6,6 +6,8 @@
 
 import { useState } from "react";
 import { createClient } from "../utils/supabase/client";
+import { isSupplier } from "../utils/supplier";
+import { isAdmin } from "../utils/admin";
 
 /**
  * Returns form state (email, password, name, rememberMe) plus submit / toggle / forgot-password handlers.
@@ -69,14 +71,22 @@ export function useAuth() {
     // ── Signup branch ─────────────────────────────────────
     } else {
       try {
-        // Create user via Supabase Auth; store display name + default B2B role in metadata
+        // Assign role based on hardcoded lists: admin, supplier, or default client
+        let assignedRole = "client";
+        if (isAdmin(email)) {
+          assignedRole = "admin";
+        } else if (isSupplier(email)) {
+          assignedRole = "supplier";
+        }
+
+        // Create user via Supabase Auth; store display name + B2B role in metadata
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
               name: name,
-              role: "client",
+              role: assignedRole,
             },
           },
         });

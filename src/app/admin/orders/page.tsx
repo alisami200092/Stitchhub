@@ -8,6 +8,7 @@ import LoadingSpinner from "@/components/admin/LoadingSpinner";
 import EmptyState from "@/components/admin/EmptyState";
 import StatusBadge from "@/components/admin/StatusBadge";
 import { useAdminOrders } from "@/hooks/useAdminOrders";
+import { createClient } from "@/utils/supabase/client";
 
 export default function AdminOrdersPage() {
   const {
@@ -20,6 +21,84 @@ export default function AdminOrdersPage() {
   } = useAdminOrders();
 
   const [isLogExpanded, setIsLogExpanded] = React.useState(true);
+
+  // Supplier chat integration
+  const [supplierMessages, setSupplierMessages] = React.useState<any[]>([]);
+  const [supplierChatText, setSupplierChatText] = React.useState("");
+  const [supplierChatLoading, setSupplierChatLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!selectedOrder) {
+      setSupplierMessages([]);
+      return;
+    }
+
+    const supabase = createClient();
+    const activeInvoice = selectedOrder.invoiceNumber;
+
+    const fetchSupplierMessages = async () => {
+      setSupplierChatLoading(true);
+      const { data, error } = await supabase
+        .from("supplier_messages")
+        .select("*")
+        .eq("order_id", activeInvoice)
+        .order("created_at", { ascending: true });
+
+      if (!error && data) {
+        setSupplierMessages(data);
+      }
+      setSupplierChatLoading(false);
+    };
+
+    fetchSupplierMessages();
+
+    // Subscribe to new supplier_messages
+    const channel = supabase
+      .channel(`admin_supplier_messages:${activeInvoice}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "supplier_messages",
+          filter: `order_id=eq.${activeInvoice}`,
+        },
+        (payload) => {
+          setSupplierMessages((prev) => {
+            if (prev.some(m => m.id === payload.new.id)) return prev;
+            return [...prev, payload.new];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedOrder]);
+
+  const sendSupplierMessage = async () => {
+    if (!selectedOrder || !supplierChatText.trim()) return;
+    const textToSend = supplierChatText.trim();
+    setSupplierChatText("");
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("supplier_messages")
+        .insert({
+          order_id: selectedOrder.invoiceNumber,
+          sender: "admin",
+          message_text: textToSend,
+        });
+
+      if (error) {
+        console.error("Error sending supplier message:", error);
+      }
+    } catch (err) {
+      console.error("Unexpected supplier messaging error:", err);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12 w-full">
@@ -258,6 +337,67 @@ export default function AdminOrdersPage() {
                         )}
                       </div>
                     )}
+                  </div>
+
+                  {/* Supplier Sourcing Chat Log */}
+                  <div className="border-t border-white/10 pt-6">
+                    <h4 className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-4 font-mono">
+                      Supplier Portal Messages
+                    </h4>
+
+                    {supplierChatLoading ? (
+                      <div className="flex justify-center py-4">
+                        <span className="h-4 w-4 rounded-full border-2 border-[#d4af37] border-t-transparent animate-spin" />
+                      </div>
+                    ) : supplierMessages.length === 0 ? (
+                      <div className="text-[10px] text-zinc-500 italic py-4 text-center bg-black/20 rounded-xl border border-white/5 font-mono">
+                        No supplier correspondence recorded.
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-72 overflow-y-auto pr-1 flex flex-col scrollbar-thin">
+                        {supplierMessages.map((msg: any) => {
+                          const isAdmin = msg.sender === "admin";
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`flex flex-col max-w-[85%] rounded-xl p-3 text-[11px] ${
+                                isAdmin
+                                  ? "bg-zinc-800/80 text-zinc-100 self-end ml-auto border border-zinc-700/50"
+                                  : "bg-[#d4af37]/10 text-[#fef08a] self-start mr-auto border border-[#d4af37]/20"
+                              }`}
+                            >
+                              <span className="text-[8px] font-mono font-bold text-zinc-500 mb-1">
+                                {isAdmin ? "👤 ADMIN" : "🏭 SUPPLIER"}
+                              </span>
+                              <p className="whitespace-pre-wrap leading-relaxed font-sans">{msg.message_text}</p>
+                              <span className={`text-[7px] font-mono mt-1 text-right ${isAdmin ? "text-zinc-500" : "text-[#d4af37]/60"}`}>
+                                {new Date(msg.createdAt || msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Send Message to Supplier */}
+                    <div className="mt-4 bg-black/20 border border-white/5 p-3.5 rounded-xl space-y-2">
+                      <textarea
+                        rows={2}
+                        value={supplierChatText}
+                        onChange={(e) => setSupplierChatText(e.target.value)}
+                        placeholder="Compose message to Supplier..."
+                        className="w-full bg-black/40 border border-white/5 rounded-lg p-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#d4af37]/30 font-sans"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          onClick={sendSupplierMessage}
+                          disabled={!supplierChatText.trim()}
+                          className="bg-[#d4af37] hover:bg-[#bfa032] disabled:opacity-30 text-zinc-950 font-mono font-bold text-[9px] uppercase tracking-wider px-3.5 py-1.5 rounded-md transition-all cursor-pointer"
+                        >
+                          Send to Supplier
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

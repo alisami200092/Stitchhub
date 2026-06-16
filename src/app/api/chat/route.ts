@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
-import { emailLogs } from "@/db/schema";
+import { emailLogs, invoices, materialsInventory, supplierBids } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export async function POST(req: Request) {
@@ -111,7 +111,72 @@ export async function POST(req: Request) {
         finalStatus = 'draft_sourcing'; // Keep it in standard workflow instead of locking it!
       }
 
-      replyContent = aiResponse;
+      // 🛡️ PRE-APPROVAL INVENTORY CHECK
+      if (finalStatus === "draft_sourcing") {
+        let invoiceNumber = "";
+        const emailLogRecord = await db
+          .select({
+            metadata: emailLogs.metadata,
+          })
+          .from(emailLogs)
+          .where(eq(emailLogs.id, threadId))
+          .limit(1);
+
+        if (emailLogRecord.length > 0 && emailLogRecord[0].metadata) {
+          const meta = emailLogRecord[0].metadata as any;
+          invoiceNumber = meta.invoiceNumber || "";
+        }
+
+        let cartItems: any[] = [];
+        if (invoiceNumber) {
+          const invoiceRecord = await db
+            .select({
+              itemsSnapshot: invoices.itemsSnapshot,
+            })
+            .from(invoices)
+            .where(eq(invoices.invoiceNumber, invoiceNumber))
+            .limit(1);
+
+          if (invoiceRecord.length > 0) {
+            cartItems = (invoiceRecord[0].itemsSnapshot as any[]) || [];
+          }
+        }
+
+        let isInventoryDepleted = false;
+        for (const item of cartItems) {
+          const productName = item.product?.title;
+          const requestedQty = item.quantity || 0;
+          if (productName) {
+            const inv = await db
+              .select({
+                stockQuantity: materialsInventory.stockQuantity,
+              })
+              .from(materialsInventory)
+              .where(eq(materialsInventory.productName, productName))
+              .limit(1);
+
+            if (inv.length > 0) {
+              if (inv[0].stockQuantity < requestedQty) {
+                isInventoryDepleted = true;
+                break;
+              }
+            } else {
+              // Product not found in inventory -> treat as depleted
+              isInventoryDepleted = true;
+              break;
+            }
+          }
+        }
+
+        if (isInventoryDepleted) {
+          replyContent = `Reviewing request parameters: Our physical inventory for this blank style is currently depleted. Status: Order locked for manual material allocation. Next Step: This thread is being escalated to a human Admin for a mill pre-order.`;
+          finalStatus = "review_required";
+        } else {
+          replyContent = aiResponse;
+        }
+      } else {
+        replyContent = aiResponse;
+      }
     }
 
     // 3. Append the assistant reply and update database record atomically
@@ -130,6 +195,51 @@ export async function POST(req: Request) {
             eq(emailLogs.userId, user.id)
           )
         );
+
+      // STEP 3: MOCK RE-ROUTING TO SUPPLIER PORTAL
+      if (finalStatus === "draft_sourcing") {
+        let invoiceNumber = "";
+        const emailLogRecord = await db
+          .select({
+            metadata: emailLogs.metadata,
+          })
+          .from(emailLogs)
+          .where(eq(emailLogs.id, threadId))
+          .limit(1);
+
+        if (emailLogRecord.length > 0 && emailLogRecord[0].metadata) {
+          const meta = emailLogRecord[0].metadata as any;
+          invoiceNumber = meta.invoiceNumber || "";
+        }
+
+        let cartItems: any[] = [];
+        if (invoiceNumber) {
+          const invoiceRecord = await db
+            .select({
+              itemsSnapshot: invoices.itemsSnapshot,
+            })
+            .from(invoices)
+            .where(eq(invoices.invoiceNumber, invoiceNumber))
+            .limit(1);
+
+          if (invoiceRecord.length > 0) {
+            cartItems = (invoiceRecord[0].itemsSnapshot as any[]) || [];
+          }
+        }
+
+        for (const item of cartItems) {
+          const basePrice = item.product?.price || 15.00;
+          const quotedCost = basePrice * 0.9; // 10% discount for bulk
+          
+          await db.insert(supplierBids).values({
+            orderId: invoiceNumber || threadId,
+            supplierName: "Test Supplier Alpha",
+            quotedCostPerUnit: quotedCost.toFixed(2),
+            estimatedDeliveryDays: 14,
+            status: "pending",
+          });
+        }
+      }
     }
 
     // Send the reply back to the React frontend

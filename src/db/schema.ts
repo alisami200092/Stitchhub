@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, integer, doublePrecision, numeric, boolean } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, jsonb, integer, doublePrecision, numeric, boolean, serial } from "drizzle-orm/pg-core";
 
 // ==========================================
 // 1. SUPABASE AUTH SYNCHRONIZED USER TABLE
@@ -56,4 +56,33 @@ export const products = pgTable("products", {
   moq: integer("moq").notNull(),
   customization: text("customization").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ==========================================
+// 4. SUPPLIER PORTAL BIDS TABLE
+// ==========================================
+
+export const supplierBids = pgTable("supplier_bids", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderId: text("order_id").notNull(),
+  supplierName: text("supplier_name").notNull(),
+  quotedCostPerUnit: numeric("quoted_cost_per_unit", { precision: 10, scale: 2 }).notNull(),
+  estimatedDeliveryDays: integer("estimated_delivery_days").notNull(),
+  status: text("status").default("pending").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const materialsInventory = pgTable("materials_inventory", {
+  id: serial("id").primaryKey(),
+  productName: text("product_name").unique().notNull(),
+  stockQuantity: integer("stock_quantity").default(0).notNull(),
+  reorderLevel: integer("reorder_level").default(20).notNull(),
+});
+
+export const supplierMessages = pgTable("supplier_messages", {
+  id: serial("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  sender: text("sender").notNull(), // 'admin' or 'supplier'
+  messageText: text("message_text").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
