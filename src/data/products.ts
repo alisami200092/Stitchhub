@@ -4,7 +4,7 @@ export const catalog: Product[] = [
   {
     id: "gildan-18500-hoodie",
     title: "Gildan 18500 Hoodie",
-    cat: "Apparel",
+    cat: "Apparel (Hoodie, Polo)",
     img: "/images/products/apparel/hoodie.webp",
     price: 39.99, 
     priceRange: "$14.20 - $22.50", 
@@ -15,7 +15,7 @@ export const catalog: Product[] = [
   {
     id: "matte-black-tumbler",
     title: "Matte Black Tumbler",
-    cat: "Drinkware",
+    cat: "Drinkware (Tumblers)",
     img: "/images/products/drinkware/tumbler.webp",
     price: 19.99,
     priceRange: "$8.50 - $12.99",
@@ -26,7 +26,7 @@ export const catalog: Product[] = [
   {
     id: "under-armour-polo",
     title: "Under Armour Polo",
-    cat: "Performance",
+    cat: "Apparel (Hoodie, Polo)",
     img: "/images/products/performance/polo.webp",
     price: 29.99,
     priceRange: "$16.80 - $24.00",
@@ -37,7 +37,7 @@ export const catalog: Product[] = [
   {
     id: "tech-organizer",
     title: "Tech Organizer",
-    cat: "Accessories",
+    cat: "Gear (Organizer Pouches)",
     img: "/images/products/accessories/pouch.webp",
     price: 14.99,
     priceRange: "$5.20 - $9.50",
@@ -48,7 +48,7 @@ export const catalog: Product[] = [
   {
     id: "quarter-zip-windbreaker",
     title: "Quarter-Zip Windbreaker",
-    cat: "Performance",
+    cat: "Apparel (Hoodie, Polo)",
     img: "/images/products/performance/windbreaker.webp",
     price: 49.99,
     priceRange: "$22.00 - $31.50",
@@ -59,7 +59,7 @@ export const catalog: Product[] = [
   {
     id: "thermo-insulated-flask",
     title: "Thermo Insulated Flask",
-    cat: "Drinkware",
+    cat: "Drinkware (Tumblers)",
     img: "/images/products/drinkware/flask.webp",
     price: 27.99,
     priceRange: "$12.50 - $18.00",
@@ -70,29 +70,29 @@ export const catalog: Product[] = [
   {
     id: "stitch-hub-heavyweight-hoodie",
     title: "Premium Heavyweight Hoodie (Stitch Hub Original)",
-    cat: "Apparel",
+    cat: "Apparel (Hoodie, Polo)",
     img: "/images/products/apparel/premium_heavyweight_hoodie.webp",
-    price: 49.99,
-    priceRange: "$24.50 - $39.99",
+    price: 49.99, 
+    priceRange: "$24.50 - $39.99", 
     description: "Super heavyweight premium fleece designed for maximum comfort and structure. Perfect for casual corporate wear and high-end brand merchandising.",
-    moq: 25,
+    moq: 50,
     customization: "Screen Print | Puff Print | Chest Embroidery"
   },
   {
     id: "stitch-hub-corporate-polo",
     title: "Minimalist Corporate Polo (Stitch Hub Original)",
-    cat: "Apparel",
+    cat: "Apparel (Hoodie, Polo)",
     img: "/images/products/apparel/corporate_polo.webp",
     price: 34.99,
     priceRange: "$18.00 - $28.50",
     description: "Sleek, structured polo featuring premium knit collar and cuffs. Tailored specifically for modern uniforming and formal corporate gifting.",
-    moq: 25,
+    moq: 50,
     customization: "Precision Embroidery"
   },
   {
     id: "stitch-hub-insulated-tumbler",
     title: "Insulated Matte Tumbler (Stitch Hub Original)",
-    cat: "Drinkware",
+    cat: "Drinkware (Tumblers)",
     img: "/images/products/drinkware/matte_tumbler.webp",
     price: 22.99,
     priceRange: "$9.99 - $14.99",
@@ -103,7 +103,7 @@ export const catalog: Product[] = [
   {
     id: "stitch-hub-tech-organizer",
     title: "EDC Tech Organizer Pouch (Stitch Hub Original)",
-    cat: "Accessories",
+    cat: "Gear (Organizer Pouches)",
     img: "/images/products/accessories/tech_organizer.webp",
     price: 19.99,
     priceRange: "$8.00 - $12.50",
@@ -114,12 +114,12 @@ export const catalog: Product[] = [
   {
     id: "stitch-hub-acoustic-panel",
     title: "Framed Acoustic Art Panel (Stitch Hub Original)",
-    cat: "Accessories",
+    cat: "Office (Acoustic Panels)",
     img: "/images/products/accessories/acoustic_panel.webp",
     price: 89.99,
     priceRange: "$45.00 - $69.00",
     description: "Interior tech-office acoustic panels featuring premium sound dampening insulation, wrapped in custom full-bleed digital canvas with sleek framing options.",
-    moq: 10,
+    moq: 50,
     customization: "Full-Bleed Digital Print | Custom Color Frame"
   }
 ];

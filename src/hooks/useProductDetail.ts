@@ -9,6 +9,8 @@ import type { Product } from "../types";
 import { useCartStore } from "../stores/cart-store";
 import { useRouter } from "next/navigation";
 
+import { calculateTieredPricing } from "../utils/pricing";
+
 /**
  * Returns quantity, size, notes, computed price (with volume discounts), MOQ clamping,
  * and a handleAddToCart that dispatches to the cart store and calls onClose.
@@ -30,14 +32,9 @@ export function useProductDetail(product: Product | null, onClose: () => void) {
   const minQty = product?.moq ?? 25;
   const currentQty = Math.max(quantity, minQty);
 
-  // Volume discount tiers: 100+ units → 10% off, 250+ units → 15% off
-  const getDiscountedPrice = (qty: number) => {
-    if (qty >= 250) return product!.price * 0.85;
-    if (qty >= 100) return product!.price * 0.9;
-    return product!.price;
-  };
-
-  const currentPrice = product ? getDiscountedPrice(currentQty) : 0;
+  const currentPrice = product
+    ? calculateTieredPricing(product.id, currentQty, product.price).unitPrice
+    : 0;
 
   const handleAddToCart = () => {
     if (!product || isInCart) return;
@@ -54,7 +51,7 @@ export function useProductDetail(product: Product | null, onClose: () => void) {
   };
 
   const isApparel =
-    product?.cat === "Apparel" || product?.cat === "Performance";
+    product?.cat === "Apparel (Hoodie, Polo)";
 
   return {
     quantity,

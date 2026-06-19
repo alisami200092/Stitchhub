@@ -4,7 +4,8 @@ export const ADMIN_EMAILS = [
   "moshu@stitchhub.com",
   "alimaria2000@gmail.com",
   "cheetayfastdl345@gmail.com",
-  "espotted8@gmail.com"
+  "espotted8@gmail.com",
+  "sellfor59@gmail.com"
 ];
 
 /**

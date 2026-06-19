@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { createClient } from "../../../../utils/supabase/client";
+import { mapProductToInventoryItem } from "../../../../utils/inventory";
 
 export default function ActiveRfqsTab() {
   const [activeRfqs, setActiveRfqs] = useState<any[]>([]);
@@ -15,11 +16,11 @@ export default function ActiveRfqsTab() {
       try {
         const supabase = createClient();
         
-        // Fetch email_logs with status 'draft_sourcing' or 'review_required'
+        // Fetch email_logs with status 'draft sourcing' or 'review required'
         const { data: logs, error: logsError } = await supabase
           .from("email_logs")
           .select("*")
-          .in("status", ["draft_sourcing", "review_required"]);
+          .in("status", ["draft sourcing", "review required", "draft_sourcing", "review_required"]);
 
         if (logsError) {
           console.error("Error fetching logs:", logsError);
@@ -102,13 +103,13 @@ export default function ActiveRfqsTab() {
       const supplierName = user?.email || "sellfor59@gmail.com";
 
       const { error } = await supabase
-        .from("supplier_bids")
+        .from("supplier_quotes")
         .insert({
           order_id: selectedRfq.invoiceNumber,
           supplier_name: supplierName,
           quoted_cost_per_unit: parseFloat(price),
           estimated_delivery_days: parseInt(days, 10),
-          status: "pending",
+          status: "under review",
         });
 
       if (error) {
@@ -122,10 +123,11 @@ export default function ActiveRfqsTab() {
           const title = item.product?.title;
           const qty = item.quantity || 0;
           if (title) {
+            const invName = mapProductToInventoryItem(title) || title;
             const { data: invData } = await supabase
               .from("materials_inventory")
               .select("stock_quantity")
-              .eq("product_name", title)
+              .eq("product_name", invName)
               .maybeSingle();
 
             const currentStock = invData?.stock_quantity ?? 0;
@@ -134,7 +136,7 @@ export default function ActiveRfqsTab() {
             await supabase
               .from("materials_inventory")
               .update({ stock_quantity: newStock })
-              .eq("product_name", title);
+              .eq("product_name", invName);
           }
         }
 

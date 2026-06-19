@@ -22,10 +22,13 @@ export const emailLogs = pgTable("email_logs", {
   userId: text("user_id").references(() => users.id, { onDelete: "cascade" }), 
   subject: text("subject").notNull(),
   body: text("body").notNull(),
-  status: text("status").default("draft_sourcing").notNull(), // draft_sourcing, review_required, approved, sourcing_active, processing
+  status: text("status").default("draft sourcing").notNull(), // draft sourcing, review required, approved, processing, shipping, delivered
   aiResponseDraft: text("ai_response_draft"),
   metadata: jsonb("metadata"), 
   finalQuoteAmount: numeric("final_quote_amount", { precision: 10, scale: 2 }),
+  unitPrice: numeric("unit_price", { precision: 10, scale: 2 }),
+  totalPrice: numeric("total_price", { precision: 10, scale: 2 }),
+  items: jsonb("items"),
   supplierPayload: jsonb("supplier_payload"),
   agentOverride: boolean("agent_override").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -62,13 +65,13 @@ export const products = pgTable("products", {
 // 4. SUPPLIER PORTAL BIDS TABLE
 // ==========================================
 
-export const supplierBids = pgTable("supplier_bids", {
+export const supplierQuotes = pgTable("supplier_quotes", {
   id: uuid("id").defaultRandom().primaryKey(),
   orderId: text("order_id").notNull(),
   supplierName: text("supplier_name").notNull(),
   quotedCostPerUnit: numeric("quoted_cost_per_unit", { precision: 10, scale: 2 }).notNull(),
   estimatedDeliveryDays: integer("estimated_delivery_days").notNull(),
-  status: text("status").default("pending").notNull(),
+  status: text("status").default("under review").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

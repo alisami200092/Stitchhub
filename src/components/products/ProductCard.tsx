@@ -41,7 +41,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
       </div>
       {/* Category / MOQ footer metadata */}
       <div className="mt-2 flex items-center justify-between text-xs text-zinc-500 border-t border-zinc-900/60 pt-3">
-        <span>Category: {product.cat}</span>
+        <span>Category: {product.cat.includes(" (") ? product.cat.split(" (")[0] : product.cat}</span>
         <span>Minimum: {product.moq} units</span>
       </div>
     </Link>

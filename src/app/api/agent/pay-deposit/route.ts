@@ -11,10 +11,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required logId." }, { status: 400 });
     }
 
-    // 1. Update status to sourcing_active
+    // 1. Update status to processing
     const updated = await db
       .update(emailLogs)
-      .set({ status: "sourcing_active" })
+      .set({ status: "processing" })
       .where(eq(emailLogs.id, logId))
       .returning();
 
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       console.error("Background supplier agent activation failure:", err);
     });
 
-    return NextResponse.json({ success: true, status: "sourcing_active" });
+    return NextResponse.json({ success: true, status: "processing" });
 
   } catch (error) {
     console.error("Deposit payment capture error:", error);

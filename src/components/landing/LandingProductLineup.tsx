@@ -14,10 +14,10 @@ export default function LandingProductLineup() {
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
-            { id: "gildan-18500-hoodie", title: "Gildan 18500 Hoodie", cat: "Apparel", img: "/images/products/apparel/hoodie.webp" },
-            { id: "matte-black-tumbler", title: "Matte Black Tumbler", cat: "Drinkware", img: "/images/products/drinkware/tumbler.webp" },
-            { id: "under-armour-polo", title: "Under Armour Polo", cat: "Performance", img: "/images/products/performance/polo.webp" },
-            { id: "tech-organizer", title: "Tech Organizer", cat: "Accessories", img: "/images/products/accessories/pouch.webp" }
+            { id: "gildan-18500-hoodie", title: "Gildan 18500 Hoodie", cat: "Apparel (Hoodie, Polo)", img: "/images/products/apparel/hoodie.webp" },
+            { id: "matte-black-tumbler", title: "Matte Black Tumbler", cat: "Drinkware (Tumblers)", img: "/images/products/drinkware/tumbler.webp" },
+            { id: "under-armour-polo", title: "Under Armour Polo", cat: "Apparel (Hoodie, Polo)", img: "/images/products/performance/polo.webp" },
+            { id: "tech-organizer", title: "Tech Organizer", cat: "Gear (Organizer Pouches)", img: "/images/products/accessories/pouch.webp" }
           ].map((product, i) => (
             <Link key={i} href={`/products/${product.id}`} className="group cursor-pointer">
               <div className="w-full aspect-[4/5] bg-zinc-900 rounded-xl mb-4 overflow-hidden border border-zinc-800 group-hover:border-[#d4af37]/40 transition-colors flex items-center justify-center relative">
@@ -33,7 +33,7 @@ export default function LandingProductLineup() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
               <h4 className="text-lg font-bold group-hover:text-[#d4af37] transition-colors">{product.title}</h4>
-              <p className="text-sm text-zinc-500">{product.cat}</p>
+              <p className="text-sm text-zinc-500">{product.cat.includes(" (") ? product.cat.split(" (")[0] : product.cat}</p>
             </Link>
           ))}
         </div>

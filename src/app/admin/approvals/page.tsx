@@ -11,6 +11,9 @@ interface EscalationLog {
   createdAt: string;
   metadata?: { recipientEmail?: string; itemCount?: number };
   finalQuoteAmount?: string | null;
+  unitPrice?: string | null;
+  totalPrice?: string | null;
+  items?: any;
 }
 
 export default function AdminApprovalsPage() {
@@ -18,6 +21,8 @@ export default function AdminApprovalsPage() {
   const [selectedTicket, setSelectedTicket] = useState<EscalationLog | null>(null);
   const [editableResponse, setEditableResponse] = useState("");
   const [quoteAmount, setQuoteAmount] = useState("");
+  const [unitPrice, setUnitPrice] = useState("");
+  const [totalPrice, setTotalPrice] = useState("");
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
@@ -30,9 +35,12 @@ export default function AdminApprovalsPage() {
           const data = await res.json();
           setTickets(data.escalations || []);
           if (data.escalations && data.escalations.length > 0) {
-            setSelectedTicket(data.escalations[0]);
-            setEditableResponse(cleanAiResponse(data.escalations[0].aiResponseDraft));
-            setQuoteAmount(data.escalations[0].finalQuoteAmount || "");
+            const ticket = data.escalations[0];
+            setSelectedTicket(ticket);
+            setEditableResponse(cleanAiResponse(ticket.aiResponseDraft));
+            setQuoteAmount(ticket.finalQuoteAmount || "");
+            setUnitPrice(ticket.unitPrice || "");
+            setTotalPrice(ticket.totalPrice || "");
           }
         }
       } catch (error) {
@@ -49,33 +57,68 @@ export default function AdminApprovalsPage() {
     if (selectedTicket) {
       setEditableResponse(cleanAiResponse(selectedTicket.aiResponseDraft));
       setQuoteAmount(selectedTicket.finalQuoteAmount || "");
+      setUnitPrice(selectedTicket.unitPrice || "");
+      setTotalPrice(selectedTicket.totalPrice || "");
     } else {
       setEditableResponse("");
       setQuoteAmount("");
+      setUnitPrice("");
+      setTotalPrice("");
     }
   }, [selectedTicket]);
 
   // Helper helper to strip out structural tags for human previewing
   const cleanAiResponse = (rawStr: string) => {
+    let text = rawStr;
     try {
       const parsed = JSON.parse(rawStr);
       if (Array.isArray(parsed) && parsed.length > 0) {
         const lastMsg = [...parsed].reverse().find((m) => m.role === "assistant") || parsed[parsed.length - 1];
-        return lastMsg ? lastMsg.content : "";
+        text = lastMsg ? lastMsg.content : "";
+      } else if (parsed && typeof parsed === "object") {
+        if (parsed.ai_response) text = parsed.ai_response;
+        else if (parsed.aiResponse) text = parsed.aiResponse;
+        else if (parsed.content) text = parsed.content;
+        else if (parsed.response) text = parsed.response;
+        else if (parsed.message) text = parsed.message;
       }
     } catch {
       // Plain text fallback
     }
-    return rawStr
-      .replace("<action>PAUSE</action>", "")
-      .replace("escalate_to_admin", "")
+    return text
+      .replace(/<action>PAUSE<\/action>/gi, "")
+      .replace(/escalate_to_admin:?/gi, "")
       .trim();
+  };
+
+  const getQuantity = () => {
+    if (selectedTicket?.items && Array.isArray(selectedTicket.items)) {
+      return selectedTicket.items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+    }
+    return selectedTicket?.metadata?.itemCount || 0;
+  };
+
+  const handleUnitPriceChange = (val: string) => {
+    setUnitPrice(val);
+    const parsedUnit = parseFloat(val);
+    const qty = getQuantity();
+    if (!isNaN(parsedUnit) && qty > 0) {
+      setTotalPrice((parsedUnit * qty).toFixed(2));
+    }
+  };
+
+  const handleTotalPriceChange = (val: string) => {
+    setTotalPrice(val);
+    const parsedTotal = parseFloat(val);
+    const qty = getQuantity();
+    if (!isNaN(parsedTotal) && qty > 0) {
+      setUnitPrice((parsedTotal / qty).toFixed(2));
+    }
   };
 
   const handleProcessDecision = async (decision: "approve" | "reject") => {
     if (!selectedTicket) return;
     setProcessing(true);
-
     try {
       // 📡 POST to an admin control endpoint to handle email updating and routing
       const res = await fetch("/api/admin/process-approval", {
@@ -85,7 +128,8 @@ export default function AdminApprovalsPage() {
           logId: selectedTicket.id,
           decision,
           finalText: editableResponse,
-          finalQuoteAmount: quoteAmount,
+          unitPrice,
+          totalPrice,
         }),
       });
 
@@ -125,8 +169,15 @@ export default function AdminApprovalsPage() {
         throw new Error();
       }
     } catch {
+      let bodyText = selectedTicket.body || "";
+      try {
+        const parsed = JSON.parse(selectedTicket.aiResponseDraft || "");
+        if (parsed && typeof parsed === "object" && parsed.user_request) {
+          bodyText = parsed.user_request;
+        }
+      } catch {}
       chatHistory = [
-        { role: "user", content: selectedTicket.body || "" },
+        { role: "user", content: bodyText || "No initial metadata prompt declared." },
         { role: "assistant", content: cleanAiResponse(selectedTicket.aiResponseDraft || "") }
       ];
     }
@@ -157,7 +208,7 @@ export default function AdminApprovalsPage() {
                   onClick={() => setSelectedTicket(t)}
                   className={`p-4 rounded-xl border text-left cursor-pointer transition-all ${
                     isSelected
-                      ? (t.status === "review_required" || t.status === "escalated")
+                      ? (t.status === "review_required" || t.status === "escalated" || t.status === "review required")
                         ? "bg-red-500/5 border-red-500/40 shadow-lg"
                         : "bg-[#d4af37]/5 border-[#d4af37]/40 shadow-lg"
                       : "bg-white/1 border-white/5 hover:border-white/10"
@@ -166,17 +217,17 @@ export default function AdminApprovalsPage() {
                   <div className="flex justify-between items-start gap-2">
                     <p className={`text-xs font-bold truncate max-w-[150px] ${
                       isSelected
-                        ? (t.status === "review_required" || t.status === "escalated")
+                        ? (t.status === "review_required" || t.status === "escalated" || t.status === "review required")
                           ? "text-red-400"
                           : "text-[#d4af37]"
                         : "text-zinc-200"
                     }`}>{t.subject}</p>
                     <span className={`text-[8px] px-1.5 py-0.5 rounded font-mono font-bold tracking-wider uppercase ${
-                      (t.status === "review_required" || t.status === "escalated")
+                      (t.status === "review_required" || t.status === "escalated" || t.status === "review required")
                         ? "bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse"
                         : "bg-[#d4af37]/10 text-[#d4af37] border border-[#d4af37]/20"
                     }`}>
-                      {(t.status === "review_required" || t.status === "escalated") ? "Intercept" : "Active"}
+                      {(t.status === "review_required" || t.status === "escalated" || t.status === "review required") ? "Intercept" : "Active"}
                     </span>
                   </div>
                   <p className="text-[11px] text-zinc-500 truncate mt-1.5">{t.body || "No initial metadata prompt declared."}</p>
@@ -193,9 +244,9 @@ export default function AdminApprovalsPage() {
               <div className="border-b border-white/10 pb-3 flex justify-between items-start gap-4">
                 <div>
                   <span className={`text-[9px] font-mono uppercase tracking-widest block font-bold ${
-                    (selectedTicket.status === "review_required" || selectedTicket.status === "escalated") ? "text-red-400" : "text-[#d4af37]"
+                    (selectedTicket.status === "review_required" || selectedTicket.status === "escalated" || selectedTicket.status === "review required") ? "text-red-400" : "text-[#d4af37]"
                   }`}>
-                    {(selectedTicket.status === "review_required" || selectedTicket.status === "escalated") ? "Priority Resolution Intercept" : "Active Thread Monitoring"}
+                    {(selectedTicket.status === "review_required" || selectedTicket.status === "escalated" || selectedTicket.status === "review required") ? "Priority Resolution Intercept" : "Active Thread Monitoring"}
                   </span>
                   <h2 className="text-sm font-bold text-white mt-0.5">{selectedTicket.subject}</h2>
                 </div>
@@ -206,7 +257,7 @@ export default function AdminApprovalsPage() {
 
               <div className="flex-1 space-y-4 overflow-y-auto pr-1 text-xs">
                 {/* Scrollable Chat History Log */}
-                <div className="space-y-3 bg-black/30 border border-white/5 p-4 rounded-xl max-h-[300px] overflow-y-auto">
+                <div className="space-y-3 bg-black/30 border border-white/5 p-4 rounded-xl max-h-[220px] overflow-y-auto">
                   <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block mb-1 font-mono">Conversation Thread</span>
                   <div className="space-y-3">
                     {chatHistory.map((msg, idx) => (
@@ -231,33 +282,76 @@ export default function AdminApprovalsPage() {
                   </div>
                 </div>
 
-                {/* Drafting Override Response Panel */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono">
+                {/* Items in Quote Section */}
+                {selectedTicket.items && Array.isArray(selectedTicket.items) && selectedTicket.items.length > 0 && (
+                  <div className="space-y-2 bg-black/30 border border-white/5 p-4 rounded-xl max-h-[150px] overflow-y-auto">
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block mb-1 font-mono">Items In Quote</span>
+                    <div className="space-y-2">
+                      {selectedTicket.items.map((item: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center text-[11px] border-b border-white/5 pb-1.5 last:border-0 last:pb-0">
+                          <div>
+                            <span className="font-bold text-zinc-200">{item.product?.title || "Custom Product"}</span>
+                            <span className="text-zinc-500 ml-2">({item.size || "Standard"}, {item.color || "Default"})</span>
+                          </div>
+                          <div className="text-zinc-400">
+                            <span className="font-mono">{item.quantity} units</span>
+                            <span className="text-zinc-600 font-mono ml-2">@ ${item.product?.price || 0}/unit</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pricing Override Inputs */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono">
                   <div className="space-y-2 flex flex-col">
                     <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider block">
-                      Assign Wholesale Quote ($)
+                      Unit Price ($)
                     </span>
                     <input
                       type="text"
-                      value={quoteAmount}
-                      onChange={(e) => setQuoteAmount(e.target.value)}
+                      value={unitPrice}
+                      onChange={(e) => handleUnitPriceChange(e.target.value)}
                       className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-zinc-200 focus:border-[#d4af37] focus:outline-none transition-colors"
-                      placeholder="e.g. 1599.00 (numeric only)"
+                      placeholder="e.g. 38.00"
                     />
                   </div>
                   <div className="space-y-2 flex flex-col">
                     <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider block">
-                      {selectedTicket.status === "escalated"
-                        ? "Drafting Override Response Panel"
-                        : "Send Reply / Interference Message"}
+                      Total Price ($)
                     </span>
-                    <textarea
-                      value={editableResponse}
-                      onChange={(e) => setEditableResponse(e.target.value)}
-                      className="w-full h-10 min-h-10 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-zinc-200 focus:border-[#d4af37] focus:outline-none resize-none transition-colors leading-relaxed"
-                      placeholder="Type response override..."
+                    <input
+                      type="text"
+                      value={totalPrice}
+                      onChange={(e) => handleTotalPriceChange(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-zinc-200 focus:border-[#d4af37] focus:outline-none transition-colors"
+                      placeholder="e.g. 1900.00"
                     />
                   </div>
+                  <div className="space-y-2 flex flex-col">
+                    <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">
+                      Total Quantity
+                    </span>
+                    <div className="w-full bg-zinc-900/30 border border-white/5 rounded-xl px-4 py-3 text-xs text-zinc-400 select-none">
+                      {getQuantity()} units
+                    </div>
+                  </div>
+                </div>
+
+                {/* Drafting Override Response Panel */}
+                <div className="space-y-2 flex flex-col font-mono">
+                  <span className="text-[9px] font-bold text-[#d4af37] uppercase tracking-wider block">
+                    {selectedTicket.status === "escalated"
+                      ? "Drafting Override Response Panel"
+                      : "Send Reply / Interference Message"}
+                  </span>
+                  <textarea
+                    value={editableResponse}
+                    onChange={(e) => setEditableResponse(e.target.value)}
+                    className="w-full h-24 min-h-24 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-zinc-200 focus:border-[#d4af37] focus:outline-none resize-none transition-colors leading-relaxed"
+                    placeholder="Type response override..."
+                  />
                 </div>
               </div>
 
@@ -275,7 +369,7 @@ export default function AdminApprovalsPage() {
                   disabled={processing}
                   className="flex-1 bg-[#d4af37] text-[#090a0f] hover:bg-[#bfa032] px-4 py-2.5 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)] text-center disabled:opacity-40"
                 >
-                  {processing ? "Authorizing Security Dispatch Loop..." : "Authorize and Send Response Quote"}
+                  {processing ? "Authorizing Security Dispatch Loop..." : "Approve & Send Quote"}
                 </button>
               </div>
             </div>

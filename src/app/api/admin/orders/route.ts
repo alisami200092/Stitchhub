@@ -22,13 +22,14 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden. Admin access required." }, { status: 403 });
     }
 
-    // Query invoices joined with users
+    // Query invoices joined with users and emailLogs
     const orders = await db
       .select({
         id: invoices.id,
         invoiceNumber: invoices.invoiceNumber,
         totalAmount: invoices.totalAmount,
-        status: invoices.status,
+        invoiceStatus: invoices.status,
+        status: sql<string>`coalesce(${emailLogs.status}, ${invoices.status})`,
         itemsSnapshot: invoices.itemsSnapshot,
         createdAt: invoices.createdAt,
         user: {
@@ -40,6 +41,10 @@ export async function GET() {
       })
       .from(invoices)
       .leftJoin(users, eq(invoices.userId, users.id))
+      .leftJoin(
+        emailLogs,
+        sql`${emailLogs.metadata}->>'invoiceNumber' = ${invoices.invoiceNumber}`
+      )
       .orderBy(desc(invoices.createdAt));
 
     return NextResponse.json({ success: true, orders });
@@ -93,8 +98,8 @@ export async function PATCH(req: Request) {
       .set(updateData)
       .where(eq(invoices.id, id));
 
-    // If totalAmount is updated, sync it with the email logs' finalQuoteAmount and set status to approved
-    if (totalAmount !== undefined) {
+    // If status or totalAmount is updated, sync it with the email logs
+    if (status !== undefined || totalAmount !== undefined) {
       let logRecord = null;
 
       // 1. Try to find the log thread matching the invoiceNumber inside metadata
@@ -121,13 +126,19 @@ export async function PATCH(req: Request) {
       }
 
       if (logRecord) {
-        const numericAmount = totalAmount.replace(/[^0-9.]/g, "");
+        const emailLogUpdate: any = {};
+        if (status !== undefined) {
+          emailLogUpdate.status = status;
+        }
+        if (totalAmount !== undefined) {
+          const numericAmount = totalAmount.replace(/[^0-9.]/g, "");
+          emailLogUpdate.finalQuoteAmount = numericAmount || "0.00";
+          emailLogUpdate.status = "approved"; // Automatically mark as approved if totalAmount override happens
+        }
+
         await db
           .update(emailLogs)
-          .set({
-            finalQuoteAmount: numericAmount || "0.00",
-            status: "approved"
-          })
+          .set(emailLogUpdate)
           .where(eq(emailLogs.id, logRecord.id));
       }
     }
@@ -138,3 +149,4 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Failed to update order details." }, { status: 500 });
   }
 }
+

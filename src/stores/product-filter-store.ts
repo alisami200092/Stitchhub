@@ -6,7 +6,13 @@ import { create } from "zustand";
 import type { Product } from "../types";
 
 /** The category tabs displayed in the product grid. */
-export const CATEGORIES = ["All", "Apparel", "Drinkware", "Performance", "Accessories"];
+export const CATEGORIES = [
+  "All",
+  "Apparel (Hoodie, Polo)",
+  "Drinkware (Tumblers)",
+  "Gear (Organizer Pouches)",
+  "Office (Acoustic Panels)"
+];
 
 /**
  * Holds the current filter / sort selection and the product

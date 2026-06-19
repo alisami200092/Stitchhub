@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
-import { emailLogs, invoices, supplierBids, materialsInventory, supplierMessages } from "@/db/schema";
+import { emailLogs, invoices, supplierQuotes, materialsInventory, supplierMessages } from "@/db/schema";
 import { eq } from "drizzle-orm";
 // 🎯 Import the modern BrevoClient constructor directly
 import { BrevoClient } from '@getbrevo/brevo';
 import { AGENT_SYSTEM_PROMPT } from "@/utils/prompts";
+import { calculateTieredPricing } from "@/utils/pricing";
+import { mapProductToInventoryItem } from "@/utils/inventory";
 
 /**
  * POST /api/agent
@@ -53,6 +55,7 @@ export async function POST(req: Request) {
       "${message || "No specific instructions declared."}"
     `;
 
+    let isGemini = false;
     /* ── Ollama inference call: query local stitchhub_v5 model (with Gemini fallback) ── */
     let generatedAiResponse = "";
     try {
@@ -75,6 +78,7 @@ export async function POST(req: Request) {
       generatedAiResponse = ollamaData.response;
     } catch (ollamaError) {
       console.warn("Ollama failed, attempting Gemini fallback...", ollamaError);
+      isGemini = true;
       if (!process.env.GEMINI_API_KEY) {
         throw new Error("Ollama inference failed and no GEMINI_API_KEY is configured.");
       }
@@ -100,9 +104,9 @@ export async function POST(req: Request) {
     }
 
     /* ── Escalation detection: check for PAUSE tag or admin escalation keyword ── */
-    let logStatus = "draft_sourcing";
+    let logStatus = "draft sourcing";
     if (generatedAiResponse.includes("<action>PAUSE</action>") || generatedAiResponse.includes("escalate_to_admin")) {
-      logStatus = "review_required";
+      logStatus = "review required";
     }
 
     // 🛡️ StitchHub Business Logic Interceptor Middleware
@@ -116,7 +120,7 @@ export async function POST(req: Request) {
     // 🛑 FAIL-SAFE: If the AI gets confused and approves individualization or breaks math, override it entirely
     if (hasBannedModifications || containsAIHallucination) {
       generatedAiResponse = `Reviewing request parameters: Individualized garment customization or structural material swaps are beyond our standard automated wholesale capabilities.\n\nStatus: This request requires specialized manual processing and cannot be automated.\n\nNext Step: This thread has been escalated to a human Admin for a manual custom mill quote review.`;
-      logStatus = 'review_required'; // 🔄 This forces the status flip in database to freeze the client UI input!
+      logStatus = 'review required'; // 🔄 This forces the status flip in database to freeze the client UI input!
     }
 
     // 2. CALCULATE ACTUAL DAYS (Extract number of days from client prompt or use date picker data)
@@ -139,7 +143,7 @@ export async function POST(req: Request) {
     // 🛑 AUTOMATED OVERRIDE: If the math is actually valid but the AI panicked, force-approve it!
     if (aiHallucinatedFalseRejection && !hasBannedModifications && !containsAIHallucination) {
       generatedAiResponse = `Reviewing request parameters: Your requested timeline of ${extractedDays} days successfully satisfies our mandatory 4-week (28 days) production floor minimum.\n\nStatus: This order is approved for standard automated processing.\n\nNext Step: We will proceed with the precision customization parameters provided. Your digital invoice is ready in the portal.`;
-      logStatus = 'draft_sourcing'; // Keep it in standard workflow instead of locking it!
+      logStatus = 'draft sourcing'; // Keep it in standard workflow instead of locking it!
     }
 
     // 4. PRE-APPROVAL INVENTORY CHECK
@@ -152,18 +156,19 @@ export async function POST(req: Request) {
       const productName = item.product?.title;
       const requestedQty = item.quantity || 0;
       if (productName) {
+        const invName = mapProductToInventoryItem(productName) || productName;
         const inv = await db
           .select({
             stockQuantity: materialsInventory.stockQuantity,
           })
           .from(materialsInventory)
-          .where(eq(materialsInventory.productName, productName))
+          .where(eq(materialsInventory.productName, invName))
           .limit(1);
 
         if (inv.length > 0) {
           if (inv[0].stockQuantity < requestedQty) {
             isInventoryDepleted = true;
-            depletedProductName = productName;
+            depletedProductName = invName;
             requestedQuantity = requestedQty;
             availableStock = inv[0].stockQuantity;
             break;
@@ -171,7 +176,7 @@ export async function POST(req: Request) {
         } else {
           // Product not found in inventory -> treat as depleted
           isInventoryDepleted = true;
-          depletedProductName = productName;
+          depletedProductName = invName;
           requestedQuantity = requestedQty;
           availableStock = 0;
           break;
@@ -181,7 +186,24 @@ export async function POST(req: Request) {
 
     if (isInventoryDepleted) {
       generatedAiResponse = `Reviewing request parameters: Our physical inventory for this blank style (${depletedProductName}) is currently depleted (requested: ${requestedQuantity}, available stock: ${availableStock}).\n\nStatus: Order locked for manual material allocation / Review Required.\n\nNext Step: This thread has been escalated to a human Admin to review supplier stock and place a mill pre-order. We will work with our supplier to secure the necessary stock to fulfill your order.`;
-      logStatus = "review_required";
+      logStatus = "review required";
+    }
+
+    let computedUnitPrice = 0;
+    let computedTotalPrice = 0;
+    for (const item of cart) {
+      const qty = item.quantity || 0;
+      const basePrice = item.product?.price || 0;
+      const pricing = calculateTieredPricing(item.product?.id || "", qty, basePrice);
+      computedUnitPrice += pricing.unitPrice;
+      computedTotalPrice += pricing.totalPrice;
+    }
+
+    let finalQuoteAmount: string | null = null;
+    if (isGemini) {
+      logStatus = "approved";
+      finalQuoteAmount = computedTotalPrice.toFixed(2);
+      generatedAiResponse += `\n\nYour calculated wholesale production quote is $${finalQuoteAmount}. Secure a 30% deposit payment ($${(Number(finalQuoteAmount) * 0.30).toFixed(2)}) below to lock in production.`;
     }
 
     /* ── Atomic DB persistence: write email_log + invoice records ── */
@@ -189,36 +211,40 @@ export async function POST(req: Request) {
     const generatedInvoiceNumber = `INV-2026-${randomSerial}`;
 
     // Insert email log with AI response draft and tracking status
-    await db.insert(emailLogs).values({
+    const [insertedLog] = await db.insert(emailLogs).values({
       userId: currentUserId,
       subject: subject || "Bulk Apparel Production Inquiry",
       body: message || "",
       status: logStatus,
+      finalQuoteAmount: finalQuoteAmount || computedTotalPrice.toFixed(2),
+      unitPrice: computedUnitPrice.toFixed(2),
+      totalPrice: computedTotalPrice.toFixed(2),
+      items: cart,
       aiResponseDraft: generatedAiResponse,
       metadata: { recipientEmail: toEmail, itemCount: cart.length, invoiceNumber: generatedInvoiceNumber },
-    });
+    }).returning();
 
     // Insert corresponding invoice snapshot with pending quote lock
     await db.insert(invoices).values({
       userId: currentUserId,
       invoiceNumber: generatedInvoiceNumber,
-      totalAmount: "Pending Dynamic Quote Lock",
+      totalAmount: `$${computedTotalPrice.toFixed(2)}`,
       status: "unpaid",
       itemsSnapshot: cart,
     });
 
     // STEP 3: MOCK RE-ROUTING TO SUPPLIER PORTAL
-    if (logStatus === "draft_sourcing") {
+    if (logStatus === "draft sourcing") {
       for (const item of cart) {
         const basePrice = item.product?.price || 15.00;
         const quotedCost = basePrice * 0.9; // 10% discount for bulk
 
-        await db.insert(supplierBids).values({
+        await db.insert(supplierQuotes).values({
           orderId: generatedInvoiceNumber,
           supplierName: "Test Supplier Alpha",
           quotedCostPerUnit: quotedCost.toFixed(2),
           estimatedDeliveryDays: 14,
-          status: "pending",
+          status: "under review",
         });
       }
 

@@ -2,18 +2,17 @@ import React, { useState, useEffect } from "react";
 import { createClient } from "../../../../utils/supabase/client";
 
 const getStatusStyles = (status: string) => {
-  switch (status.toLowerCase()) {
-    case "accepted":
-      return "bg-emerald-400/10 text-emerald-400 border-emerald-400/20";
-    case "processing":
-    case "under review":
-    case "pending":
-      return "bg-amber-500/10 text-amber-500 border-amber-500/20";
-    case "re-quoted":
-      return "bg-blue-500/10 text-blue-400 border-blue-500/20";
-    default:
-      return "bg-zinc-800 text-zinc-400 border-zinc-700";
+  const norm = status.toLowerCase();
+  if (norm.includes("approved") || norm === "accepted" || norm === "approved / active") {
+    return "bg-emerald-400/10 text-emerald-400 border-emerald-400/20";
   }
+  if (norm === "under review" || norm === "pending" || norm === "processing") {
+    return "bg-amber-500/10 text-amber-500 border-amber-500/20";
+  }
+  if (norm.includes("rejected") || norm === "dismissed") {
+    return "bg-red-500/10 text-red-400 border-red-500/20";
+  }
+  return "bg-zinc-800 text-zinc-400 border-zinc-700";
 };
 
 export default function SubmittedQuotesTab() {
@@ -32,7 +31,7 @@ export default function SubmittedQuotesTab() {
         }
 
         const { data, error } = await supabase
-          .from("supplier_bids")
+          .from("supplier_quotes")
           .select("*")
           .eq("supplier_name", user.email)
           .order("created_at", { ascending: false });
@@ -72,11 +71,20 @@ export default function SubmittedQuotesTab() {
       .map((item: any) => `${item.product?.title || "Unknown Item"} (x${item.quantity})`)
       .join(", ");
 
+    let displayStatus = b.status;
+    if (b.status === "pending" || b.status === "under review") {
+      displayStatus = "Under Review";
+    } else if (b.status === "supplier approved") {
+      displayStatus = "Approved / Active";
+    } else if (b.status === "supplier rejected") {
+      displayStatus = "Rejected";
+    }
+
     return {
       id: b.order_id.startsWith("INV") || b.order_id.startsWith("RFQ") ? b.order_id : `RFQ #${b.order_id}`,
       product: productNames || "Bulk Sourcing Batch",
       price: `$${parseFloat(b.quoted_cost_per_unit).toFixed(2)}`,
-      status: b.status === "pending" ? "Under Review" : b.status,
+      status: displayStatus,
     };
   });
 
@@ -119,28 +127,33 @@ export default function SubmittedQuotesTab() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mappedBids.map((quote, idx) => (
-            <div
-              key={idx}
-              className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition-all shadow-lg hover:shadow-xl group"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <p className="text-zinc-500 text-sm font-bold tracking-wider mb-1 font-mono">
-                    {quote.id}
-                  </p>
-                  <h3 className="text-zinc-100 font-medium text-lg group-hover:text-amber-500 transition-colors">
-                    {quote.product}
-                  </h3>
+          {mappedBids.map((quote, idx) => {
+            const isApproved = quote.status === "Approved / Active";
+            return (
+              <div
+                key={idx}
+                className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition-all shadow-lg hover:shadow-xl group"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <p className="text-zinc-500 text-sm font-bold tracking-wider mb-1 font-mono">
+                      {quote.id}
+                    </p>
+                    <h3 className="text-zinc-100 font-medium text-lg group-hover:text-amber-500 transition-colors">
+                      {quote.product}
+                    </h3>
+                  </div>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1 whitespace-nowrap shrink-0 ${getStatusStyles(
+                      quote.status
+                    )}`}
+                  >
+                    {isApproved && (
+                      <span className="text-[10px] font-bold">✓</span>
+                    )}
+                    {quote.status}
+                  </span>
                 </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusStyles(
-                    quote.status
-                  )}`}
-                >
-                  {quote.status}
-                </span>
-              </div>
 
               <div className="pt-4 border-t border-zinc-800/50 flex justify-between items-end mt-4">
                 <div>
@@ -155,7 +168,8 @@ export default function SubmittedQuotesTab() {
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
 import { isAdmin } from "@/utils/admin";
 import { emailLogs } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or } from "drizzle-orm";
 
 
 export async function GET() {
@@ -19,6 +19,12 @@ export async function GET() {
     const escalations = await db
       .select()
       .from(emailLogs)
+      .where(
+        or(
+          eq(emailLogs.status, "review required"),
+          eq(emailLogs.status, "review_required")
+        )
+      )
       .orderBy(desc(emailLogs.createdAt));
 
     return NextResponse.json({ escalations });

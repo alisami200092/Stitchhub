@@ -10,10 +10,10 @@ import FormField from "@/components/admin/FormField";
 import { useAdminProducts } from "@/hooks/useAdminProducts";
 
 const categoryOptions = [
-  { value: "Apparel", label: "Apparel" },
-  { value: "Drinkware", label: "Drinkware" },
-  { value: "Performance", label: "Performance" },
-  { value: "Accessories", label: "Accessories" },
+  { value: "Apparel (Hoodie, Polo)", label: "Apparel (Hoodie, Polo)" },
+  { value: "Drinkware (Tumblers)", label: "Drinkware (Tumblers)" },
+  { value: "Gear (Organizer Pouches)", label: "Gear (Organizer Pouches)" },
+  { value: "Office (Acoustic Panels)", label: "Office (Acoustic Panels)" },
 ];
 
 export default function AdminProductsPage() {

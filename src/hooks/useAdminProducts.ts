@@ -16,7 +16,7 @@ interface ProductFormData {
 }
 
 const emptyForm: ProductFormData = {
-  id: "", title: "", cat: "Apparel", price: "",
+  id: "", title: "", cat: "Apparel (Hoodie, Polo)", price: "",
   priceRange: "", moq: "25", customization: "", description: "",
 };
 

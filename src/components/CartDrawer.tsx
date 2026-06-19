@@ -186,7 +186,7 @@ export default function CartDrawer({
                         </span>
                       </div>
                       <p className="text-xs text-zinc-500 mt-1">
-                        Category: {item.product.cat}
+                        Category: {item.product.cat.includes(" (") ? item.product.cat.split(" (")[0] : item.product.cat}
                         {item.size && ` | Size: ${item.size}`}
                       </p>
 

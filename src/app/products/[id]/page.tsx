@@ -83,7 +83,7 @@ export default function ProductDetailPage({ params }: PageProps) {
 
         {/* Left zone: product image with category badge */}
         <div className="lg:col-span-5">
-          <ProductImage src={product.img} alt={product.title} category={product.cat} />
+          <ProductImage src={product.img} alt={product.title} category={product.cat.includes(" (") ? product.cat.split(" (")[0] : product.cat} />
         </div>
 
         {/* Right zone: product info, customization, sizing, volume matrix, stepper, add-to-cart */}

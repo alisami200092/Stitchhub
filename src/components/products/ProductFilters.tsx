@@ -43,7 +43,7 @@ export default function ProductFilters({
                 : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-zinc-700 hover:text-white"
             }`}
           >
-            {cat}
+            {cat.includes(" (") ? cat.split(" (")[0] : cat}
           </button>
         ))}
       </div>

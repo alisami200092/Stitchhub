@@ -11,7 +11,7 @@ export type Message = {
 export type ChatThread = {
   id: string;
   subject: string;
-  status: "draft_sourcing" | "review_required" | "approved" | "sourcing_active" | "processing";
+  status: "draft sourcing" | "review required" | "approved" | "processing" | "shipping" | "delivered";
   messages: Message[];
   finalQuoteAmount?: string | null;
   agentOverride?: boolean;
@@ -50,11 +50,13 @@ export function useChat() {
               ];
             }
 
-            let mappedStatus = log.status || "draft_sourcing";
-            if (mappedStatus === "escalated" || mappedStatus === "pending") {
-              mappedStatus = "review_required";
-            } else if (mappedStatus === "drafted") {
-              mappedStatus = "draft_sourcing";
+            let mappedStatus = log.status || "draft sourcing";
+            if (mappedStatus === "escalated" || mappedStatus === "pending" || mappedStatus === "review_required" || mappedStatus === "review required") {
+              mappedStatus = "review required";
+            } else if (mappedStatus === "drafted" || mappedStatus === "draft_sourcing" || mappedStatus === "draft sourcing") {
+              mappedStatus = "draft sourcing";
+            } else if (mappedStatus === "sourcing_active" || mappedStatus === "sourcing active") {
+              mappedStatus = "processing";
             }
 
             // Check if any assistant message has escalation keywords (e.g. from historical runs)
@@ -70,14 +72,14 @@ export function useChat() {
                   msg.content.toLowerCase().includes("custom mill team"))
             );
 
-            if (hasEscalationKeyword) {
-              mappedStatus = "review_required";
+            if (hasEscalationKeyword && (mappedStatus === "draft sourcing" || mappedStatus === "review required")) {
+              mappedStatus = "review required";
             }
 
             return {
               id: log.id,
               subject: log.subject,
-              status: mappedStatus as "draft_sourcing" | "review_required" | "approved" | "sourcing_active" | "processing",
+              status: mappedStatus as "draft sourcing" | "review required" | "approved" | "processing" | "shipping" | "delivered",
               messages: history,
               finalQuoteAmount: log.finalQuoteAmount,
               agentOverride: log.agentOverride

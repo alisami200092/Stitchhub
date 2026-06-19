@@ -254,16 +254,22 @@ export default function AdminOrdersPage() {
 
                     <div>
                       <h4 className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-2 font-mono">Order Status</h4>
-                      <div className="grid grid-cols-3 gap-2">
-                        {["unpaid", "paid", "shipping"].map((status) => (
-                          <button key={status} disabled={updatingId === selectedOrder.id}
-                            onClick={() => handleUpdateStatus(selectedOrder.id, status)}
-                            className={`py-2 rounded-lg text-[10px] font-bold font-mono uppercase tracking-wider border transition-all ${
-                              selectedOrder.status === status
-                                ? "bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]"
-                                : "bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10"
-                            }`}>{status}</button>
-                        ))}
+                      <div className="relative">
+                        <select
+                          disabled={updatingId === selectedOrder.id}
+                          value={selectedOrder.status}
+                          onChange={(e) => handleUpdateStatus(selectedOrder.id, e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-zinc-200 focus:border-[#d4af37] focus:outline-none transition-colors font-mono uppercase tracking-wider cursor-pointer appearance-none"
+                        >
+                          {["draft sourcing", "review required", "approved", "processing", "shipping", "delivered"].map((status) => (
+                            <option key={status} value={status} className="bg-[#090a0f] text-zinc-200">
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-zinc-400">
+                          <span className="text-[10px]">▼</span>
+                        </div>
                       </div>
                     </div>
 

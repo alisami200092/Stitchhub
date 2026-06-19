@@ -57,7 +57,7 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
   const [isPaying, setIsPaying] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const isEscalated = activeThread?.status === "review_required";
+  const isEscalated = activeThread?.status === "review required";
   const adminIntervened = activeThread?.agentOverride;
   const lastMessage = activeThread?.messages && activeThread.messages.length > 0
     ? activeThread.messages[activeThread.messages.length - 1]
@@ -80,20 +80,20 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
   const handlePayDeposit = async (logId: string) => {
     setIsPaying(true);
     try {
-      const res = await fetch("/api/agent/pay-deposit", {
+      const res = await fetch("/api/agent/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ logId }),
       });
-      if (res.ok) {
-        alert("Deposit payment verified! Supplier Sourcing Agent deployed.");
-        window.location.reload();
+      const data = await res.json();
+      if (res.ok && data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
       } else {
-        alert("Payment capture transaction failed.");
+        alert(data.error || "Payment session creation failed.");
       }
     } catch (e) {
-      console.error("Mock payment error:", e);
-      alert("Mock payment failed.");
+      console.error("Checkout initiation error:", e);
+      alert("Failed to initiate checkout session.");
     } finally {
       setIsPaying(false);
     }
@@ -108,10 +108,12 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
           <div className="text-xs text-zinc-600 font-mono text-center py-12">No messages yet.</div>
         ) : (
           threads.map((thread) => {
-            const isReview = thread.status === "review_required";
+            const isReview = thread.status === "review required";
             const isApproved = thread.status === "approved";
-            const isSourcing = thread.status === "sourcing_active";
+            const isDraft = thread.status === "draft sourcing";
             const isProcessing = thread.status === "processing";
+            const isShipping = thread.status === "shipping";
+            const isDelivered = thread.status === "delivered";
             const isSelected = activeThread?.id === thread.id;
             
             // Get preview of the last message in the thread
@@ -133,16 +135,22 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
             let badgeLabel = "Draft";
             if (isReview) {
               badgeClass = "bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse";
-              badgeLabel = "Escalated";
+              badgeLabel = "Review Required";
             } else if (isApproved) {
               badgeClass = "bg-[#d4af37]/10 text-[#d4af37] border border-[#d4af37]/20";
               badgeLabel = "Quote Ready";
-            } else if (isSourcing) {
-              badgeClass = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 animate-pulse";
-              badgeLabel = "Sourcing";
             } else if (isProcessing) {
               badgeClass = "bg-blue-500/10 text-blue-400 border border-blue-500/20";
               badgeLabel = "Processing";
+            } else if (isShipping) {
+              badgeClass = "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 animate-pulse";
+              badgeLabel = "Shipping";
+            } else if (isDelivered) {
+              badgeClass = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+              badgeLabel = "Delivered";
+            } else if (isDraft) {
+              badgeClass = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+              badgeLabel = "Draft Sourcing";
             }
 
             return (
@@ -209,7 +217,7 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
             <div className="flex-1 overflow-y-auto space-y-4 py-4 pr-1 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
               {activeThread.messages.map((msg, index) => {
                 const isUser = msg.role === "user";
-                const isThreadEsc = activeThread.status === "review_required";
+                const isThreadEsc = activeThread.status === "review required";
                 const isTakeoverMsg = !isUser && (msg.isHuman === true || msg.content.startsWith("This is the StitchHub Custom Mill team stepping in"));
                 return (
                   <div
@@ -300,20 +308,8 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
                     disabled={isPaying}
                     className="w-full py-2.5 bg-[#d4af37] hover:bg-[#bfa032] disabled:opacity-50 text-[#090a0f] rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)] cursor-pointer text-center"
                   >
-                    {isPaying ? "Processing Secure Deposit..." : "Proceed to Secure Deposit Payment"}
+                    {isPaying ? "Processing Secure Payment..." : "Proceed To Secure Payment"}
                   </button>
-                </div>
-              )}
-
-              {activeThread.status === "sourcing_active" && (
-                <div className="bg-[#10b981]/5 border border-[#10b981]/20 rounded-xl p-4 space-y-1 shadow-md">
-                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Sourcing Active</span>
-                  </div>
-                  <p className="text-[11px] text-zinc-400 leading-normal">
-                    Your deposit payment has cleared. The Supplier AI Procurement Agent is currently verifying raw materials availability and dispatching POs to distributors.
-                  </p>
                 </div>
               )}
 
@@ -321,10 +317,34 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
                 <div className="bg-blue-950/10 border border-blue-900/30 rounded-xl p-4 space-y-2 shadow-md">
                   <div className="flex items-center gap-2 text-xs font-bold text-blue-400">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                    <span>Production Queue Processing</span>
+                    <span>Your Order is in Production</span>
                   </div>
                   <p className="text-[11px] text-zinc-400 leading-normal">
-                    Materials locked. Manufacturing process has officially initiated on the factory floor.
+                    We have successfully secured your materials, and your order has been queued for production. Our manufacturing team is currently printing and customizing your items. We'll notify you as soon as they are ready to ship!
+                  </p>
+                </div>
+              )}
+
+              {activeThread.status === "shipping" && (
+                <div className="bg-indigo-950/10 border border-indigo-900/30 rounded-xl p-4 space-y-2 shadow-md">
+                  <div className="flex items-center gap-2 text-xs font-bold text-indigo-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                    <span>Your Order Has Shipped</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 leading-normal">
+                    Your custom order has been carefully packaged and dispatched from our production facility. We will send you your tracking number shortly so you can follow its delivery.
+                  </p>
+                </div>
+              )}
+
+              {activeThread.status === "delivered" && (
+                <div className="bg-emerald-950/10 border border-emerald-900/30 rounded-xl p-4 space-y-2 shadow-md">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <span>Order Delivered</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 leading-normal">
+                    Your custom shipment has been successfully delivered to your warehouse address. We hope you love the final custom products! Thank you for choosing StitchHub.
                   </p>
                 </div>
               )}

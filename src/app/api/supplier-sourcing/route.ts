@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     const log = logs[0];
 
     // 2. Verify status
-    if (log.status !== "sourcing_active") {
+    if (log.status !== "processing") {
       return NextResponse.json({ error: "Access Denied. Sourcing pipeline is not active for this order." }, { status: 400 });
     }
 

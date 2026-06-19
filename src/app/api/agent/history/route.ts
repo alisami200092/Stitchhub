@@ -60,7 +60,7 @@ export async function GET() {
         }
       }
 
-      if (isEscalated && log.status !== "review_required") {
+      if (isEscalated && log.status !== "review_required" && log.status !== "approved" && log.status !== "processing" && log.status !== "shipping" && log.status !== "delivered") {
         log.status = "review_required";
         await db
           .update(emailLogs)

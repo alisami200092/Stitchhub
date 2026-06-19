@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
-import { emailLogs, invoices, materialsInventory, supplierBids } from "@/db/schema";
+import { emailLogs, invoices, materialsInventory, supplierQuotes } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { calculateTieredPricing } from "@/utils/pricing";
+import { mapProductToInventoryItem } from "@/utils/inventory";
 
 export async function POST(req: Request) {
   // 1. Auth Guard
@@ -22,7 +24,7 @@ export async function POST(req: Request) {
     }
 
     let isOverridden = false;
-    let currentStatus = "draft_sourcing";
+    let currentStatus = "draft sourcing";
     if (threadId) {
       const logs = await db
         .select({
@@ -85,7 +87,7 @@ export async function POST(req: Request) {
       // 🛑 FAIL-SAFE: If the AI gets confused and approves individualization or breaks math, override it entirely
       if (hasBannedModifications || containsAIHallucination) {
         aiResponse = `Reviewing request parameters: Individualized garment customization or structural material swaps are beyond our standard automated wholesale capabilities.\n\nStatus: This request requires specialized manual processing and cannot be automated.\n\nNext Step: This thread has been escalated to a human Admin for a manual custom mill quote review.`;
-        finalStatus = 'review_required'; // 🔄 This forces the status flip in database to freeze the client UI input!
+        finalStatus = 'review required'; // 🔄 This forces the status flip in database to freeze the client UI input!
       }
 
       // 2. CALCULATE ACTUAL DAYS (Extract number of days from client prompt or use date picker data)
@@ -108,12 +110,25 @@ export async function POST(req: Request) {
       // 🛑 AUTOMATED OVERRIDE: If the math is actually valid but the AI panicked, force-approve it!
       if (aiHallucinatedFalseRejection && !hasBannedModifications && !containsAIHallucination) {
         aiResponse = `Reviewing request parameters: Your requested timeline of ${extractedDays} days successfully satisfies our mandatory 4-week (28 days) production floor minimum.\n\nStatus: This order is approved for standard automated processing.\n\nNext Step: We will proceed with the precision customization parameters provided. Your digital invoice is ready in the portal.`;
-        finalStatus = 'draft_sourcing'; // Keep it in standard workflow instead of locking it!
+        finalStatus = 'draft sourcing'; // Keep it in standard workflow instead of locking it!
       }
 
-      // 🛡️ PRE-APPROVAL INVENTORY CHECK
-      if (finalStatus === "draft_sourcing") {
-        let invoiceNumber = "";
+      // 🕵️ HITL Sourcing End-of-Interaction Scanner (AI has finished/calculated draft quote)
+      const isInteractionConcluded = 
+        lowercaseAIResponse.includes("draft quote") || 
+        lowercaseAIResponse.includes("review required") ||
+        lowercaseAIResponse.includes("escalate") ||
+        lowercaseAIResponse.includes("finalize") ||
+        lowercaseAIResponse.includes("<action>pause</action>") ||
+        lowercaseAIResponse.includes("negotiation complete");
+
+      if (isInteractionConcluded && finalStatus === "draft sourcing") {
+        finalStatus = "review required";
+      }
+
+      // 🛡️ PRE-APPROVAL INVENTORY CHECK / PRICING COMPUTATION
+      let invoiceNumber = "";
+      if (threadId) {
         const emailLogRecord = await db
           .select({
             metadata: emailLogs.metadata,
@@ -126,33 +141,36 @@ export async function POST(req: Request) {
           const meta = emailLogRecord[0].metadata as any;
           invoiceNumber = meta.invoiceNumber || "";
         }
+      }
 
-        let cartItems: any[] = [];
-        if (invoiceNumber) {
-          const invoiceRecord = await db
-            .select({
-              itemsSnapshot: invoices.itemsSnapshot,
-            })
-            .from(invoices)
-            .where(eq(invoices.invoiceNumber, invoiceNumber))
-            .limit(1);
+      let cartItems: any[] = [];
+      if (invoiceNumber) {
+        const invoiceRecord = await db
+          .select({
+            itemsSnapshot: invoices.itemsSnapshot,
+          })
+          .from(invoices)
+          .where(eq(invoices.invoiceNumber, invoiceNumber))
+          .limit(1);
 
-          if (invoiceRecord.length > 0) {
-            cartItems = (invoiceRecord[0].itemsSnapshot as any[]) || [];
-          }
+        if (invoiceRecord.length > 0) {
+          cartItems = (invoiceRecord[0].itemsSnapshot as any[]) || [];
         }
+      }
 
+      if (finalStatus === "draft sourcing") {
         let isInventoryDepleted = false;
         for (const item of cartItems) {
           const productName = item.product?.title;
           const requestedQty = item.quantity || 0;
           if (productName) {
+            const invName = mapProductToInventoryItem(productName) || productName;
             const inv = await db
               .select({
                 stockQuantity: materialsInventory.stockQuantity,
               })
               .from(materialsInventory)
-              .where(eq(materialsInventory.productName, productName))
+              .where(eq(materialsInventory.productName, invName))
               .limit(1);
 
             if (inv.length > 0) {
@@ -161,7 +179,6 @@ export async function POST(req: Request) {
                 break;
               }
             } else {
-              // Product not found in inventory -> treat as depleted
               isInventoryDepleted = true;
               break;
             }
@@ -170,12 +187,48 @@ export async function POST(req: Request) {
 
         if (isInventoryDepleted) {
           replyContent = `Reviewing request parameters: Our physical inventory for this blank style is currently depleted. Status: Order locked for manual material allocation. Next Step: This thread is being escalated to a human Admin for a mill pre-order.`;
-          finalStatus = "review_required";
+          finalStatus = "review required";
         } else {
           replyContent = aiResponse;
         }
       } else {
         replyContent = aiResponse;
+      }
+
+      // 💾 SAVE PRICE & DETAILS TO DATABASE ON TRANSITION TO REVIEW REQUIRED
+      if (finalStatus === "review required" || finalStatus === "review_required") {
+        finalStatus = "review required"; // Normalize key to space-separated state
+        
+        let computedUnitPrice = 0;
+        let computedTotalPrice = 0;
+        for (const item of cartItems) {
+          const qty = item.quantity || 0;
+          const basePrice = item.product?.price || 0;
+          const pricing = calculateTieredPricing(item.product?.id || "", qty, basePrice);
+          computedUnitPrice += pricing.unitPrice;
+          computedTotalPrice += pricing.totalPrice;
+        }
+
+        if (threadId) {
+          await db
+            .update(emailLogs)
+            .set({
+              unitPrice: computedUnitPrice.toFixed(2),
+              totalPrice: computedTotalPrice.toFixed(2),
+              items: cartItems,
+              finalQuoteAmount: computedTotalPrice.toFixed(2)
+            })
+            .where(eq(emailLogs.id, threadId));
+
+          if (invoiceNumber) {
+            await db
+              .update(invoices)
+              .set({
+                totalAmount: `$${computedTotalPrice.toFixed(2)}`
+              })
+              .where(eq(invoices.invoiceNumber, invoiceNumber));
+          }
+        }
       }
     }
 
@@ -197,7 +250,7 @@ export async function POST(req: Request) {
         );
 
       // STEP 3: MOCK RE-ROUTING TO SUPPLIER PORTAL
-      if (finalStatus === "draft_sourcing") {
+      if (finalStatus === "draft sourcing") {
         let invoiceNumber = "";
         const emailLogRecord = await db
           .select({
@@ -231,12 +284,12 @@ export async function POST(req: Request) {
           const basePrice = item.product?.price || 15.00;
           const quotedCost = basePrice * 0.9; // 10% discount for bulk
           
-          await db.insert(supplierBids).values({
+          await db.insert(supplierQuotes).values({
             orderId: invoiceNumber || threadId,
             supplierName: "Test Supplier Alpha",
             quotedCostPerUnit: quotedCost.toFixed(2),
             estimatedDeliveryDays: 14,
-            status: "pending",
+            status: "under review",
           });
         }
       }
