@@ -57,7 +57,7 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
   const [isPaying, setIsPaying] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const isEscalated = activeThread?.status === "review required";
+  const isEscalated = activeThread?.status === "review required" || activeThread?.status === "escalate_to_admin";
   const adminIntervened = activeThread?.agentOverride;
   const lastMessage = activeThread?.messages && activeThread.messages.length > 0
     ? activeThread.messages[activeThread.messages.length - 1]
@@ -108,7 +108,7 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
           <div className="text-xs text-zinc-600 font-mono text-center py-12">No messages yet.</div>
         ) : (
           threads.map((thread) => {
-            const isReview = thread.status === "review required";
+            const isReview = thread.status === "review required" || thread.status === "escalate_to_admin";
             const isApproved = thread.status === "approved";
             const isDraft = thread.status === "draft sourcing";
             const isProcessing = thread.status === "processing";
@@ -133,11 +133,14 @@ export default function InboxPanel({ logs, selectedLog, onSelectLog }: InboxPane
             // Determine badge classes and label based on state machine
             let badgeClass = "bg-zinc-800 text-zinc-400 border border-zinc-700";
             let badgeLabel = "Draft";
-            if (isReview) {
-              badgeClass = "bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse";
+            if (thread.status === "escalate_to_admin") {
+              badgeClass = "bg-red-500/10 text-red-400 border border-red-500/30 animate-pulse";
+              badgeLabel = "Escalated to Admin";
+            } else if (thread.status === "review required") {
+              badgeClass = "bg-red-500/10 text-red-400 border border-red-500/30 animate-pulse";
               badgeLabel = "Review Required";
             } else if (isApproved) {
-              badgeClass = "bg-[#d4af37]/10 text-[#d4af37] border border-[#d4af37]/20";
+              badgeClass = "bg-amber-500/10 border border-amber-500/20 text-[#d4af37]";
               badgeLabel = "Quote Ready";
             } else if (isProcessing) {
               badgeClass = "bg-blue-500/10 text-blue-400 border border-blue-500/20";

@@ -59,4 +59,4 @@ export interface Invoice {
   createdAt: string;
 }
 
-export type ProfileTab = "inbox" | "account" | "security" | "ledger";
+export type ProfileTab = "inbox" | "account" | "security" | "ledger" | "tracking";

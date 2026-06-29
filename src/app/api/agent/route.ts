@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
 import { emailLogs, invoices, supplierQuotes, materialsInventory, supplierMessages } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 // 🎯 Import the modern BrevoClient constructor directly
 import { BrevoClient } from '@getbrevo/brevo';
 import { AGENT_SYSTEM_PROMPT } from "@/utils/prompts";
@@ -41,6 +41,66 @@ export async function POST(req: Request) {
 
     const currentUserId = user.id;
     const userName = user.user_metadata?.name || user.email?.split("@")[0] || "User";
+
+    // ── Global Early-Return Pipeline routing gate ──
+    const activeLog = await db
+      .select({
+        id: emailLogs.id,
+        status: emailLogs.status,
+        metadata: emailLogs.metadata,
+      })
+      .from(emailLogs)
+      .where(eq(emailLogs.userId, currentUserId))
+      .orderBy(desc(emailLogs.createdAt))
+      .limit(1);
+
+    if (activeLog.length > 0 && (activeLog[0].status === "escalate_to_admin" || activeLog[0].status === "review required")) {
+      const activeStatus = activeLog[0].status;
+      const meta = (activeLog[0].metadata || {}) as any;
+      const invoiceNumber = meta.invoiceNumber || "";
+
+      // Fetch the latest background supplier message payload
+      let supplierMsgText = "";
+      if (invoiceNumber) {
+        const latestSupplierMsg = await db
+          .select({
+            messageText: supplierMessages.messageText,
+          })
+          .from(supplierMessages)
+          .where(eq(supplierMessages.orderId, invoiceNumber))
+          .orderBy(desc(supplierMessages.createdAt))
+          .limit(1);
+
+        if (latestSupplierMsg.length > 0) {
+          supplierMsgText = `\n\nLatest Supplier Channel Transmission:\n"${latestSupplierMsg[0].messageText}"`;
+        }
+      }
+
+      const blockResponseText = `This order is currently locked and under administrative review. Standard automated AI response generation has been suspended for this thread while our procurement team manages supplier negotiations.\n\nStatus: Admin Review / Sourcing Halted.${supplierMsgText}`;
+
+      // Insert email log with blocked response, bypass the model entirely, and hardcode payment parameters to null
+      const randomSerial = Math.floor(1000 + Math.random() * 9000);
+      const generatedInvoiceNumber = invoiceNumber || `INV-2026-${randomSerial}`;
+
+      await db.insert(emailLogs).values({
+        userId: currentUserId,
+        subject: subject || "Bulk Apparel Production Inquiry",
+        body: message || "",
+        status: activeStatus,
+        finalQuoteAmount: null, // Hardcode payment parameters to null
+        unitPrice: null,
+        totalPrice: null,
+        items: cart,
+        aiResponseDraft: blockResponseText,
+        metadata: { recipientEmail: toEmail, itemCount: cart.length, invoiceNumber: generatedInvoiceNumber },
+      });
+
+      return NextResponse.json({
+        success: true,
+        generatedMessage: blockResponseText,
+        status: activeStatus
+      });
+    }
 
     /* ── Context prompt: inject user identity, cart manifest, and constraints ── */
     const userContextPrompt = `
@@ -83,7 +143,7 @@ export async function POST(req: Request) {
         throw new Error("Ollama inference failed and no GEMINI_API_KEY is configured.");
       }
 
-      const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+      const geminiModel = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
       const geminiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${process.env.GEMINI_API_KEY}`,
         {
@@ -106,7 +166,7 @@ export async function POST(req: Request) {
     /* ── Escalation detection: check for PAUSE tag or admin escalation keyword ── */
     let logStatus = "draft sourcing";
     if (generatedAiResponse.includes("<action>PAUSE</action>") || generatedAiResponse.includes("escalate_to_admin")) {
-      logStatus = "review required";
+      logStatus = "escalate_to_admin";
     }
 
     // 🛡️ StitchHub Business Logic Interceptor Middleware
@@ -114,12 +174,15 @@ export async function POST(req: Request) {
     const lowercaseAIResponse = generatedAiResponse.toLowerCase();
 
     // 1. TIMELINE & INDIVIDUALIZATION SCANNERS
-    const hasBannedModifications = clientPrompt.includes("individual") || clientPrompt.includes("excel") || clientPrompt.includes("unique name") || clientPrompt.includes("bamboo") || clientPrompt.includes("name");
     const containsAIHallucination = lowercaseAIResponse.includes("approved but will require manual handling") || lowercaseAIResponse.includes("does not meet the minimum order requirement");
 
-    // 🛑 FAIL-SAFE: If the AI gets confused and approves individualization or breaks math, override it entirely
-    if (hasBannedModifications || containsAIHallucination) {
-      generatedAiResponse = `Reviewing request parameters: Individualized garment customization or structural material swaps are beyond our standard automated wholesale capabilities.\n\nStatus: This request requires specialized manual processing and cannot be automated.\n\nNext Step: This thread has been escalated to a human Admin for a manual custom mill quote review.`;
+    // 🛑 FAIL-SAFE: If the AI gets confused or breaks math, override it entirely
+    if (containsAIHallucination) {
+      // Cleanly pass the model's rejection message if it already exists
+      const alreadyRejected = lowercaseAIResponse.includes("reject") || lowercaseAIResponse.includes("escalate") || lowercaseAIResponse.includes("<action>pause</action>") || lowercaseAIResponse.includes("pause") || lowercaseAIResponse.includes("unable") || lowercaseAIResponse.includes("beyond our standard");
+      if (!alreadyRejected) {
+        generatedAiResponse = `Reviewing request parameters: Individualized garment customization or structural material swaps are beyond our standard automated wholesale capabilities.\n\nStatus: This request requires specialized manual processing and cannot be automated.\n\nNext Step: This thread has been escalated to a human Admin for a manual custom mill quote review.`;
+      }
       logStatus = 'review required'; // 🔄 This forces the status flip in database to freeze the client UI input!
     }
 
@@ -141,7 +204,7 @@ export async function POST(req: Request) {
     const aiHallucinatedFalseRejection = isTimelineValid && lowercaseAIResponse.includes("is rejected");
 
     // 🛑 AUTOMATED OVERRIDE: If the math is actually valid but the AI panicked, force-approve it!
-    if (aiHallucinatedFalseRejection && !hasBannedModifications && !containsAIHallucination) {
+    if (aiHallucinatedFalseRejection && !containsAIHallucination) {
       generatedAiResponse = `Reviewing request parameters: Your requested timeline of ${extractedDays} days successfully satisfies our mandatory 4-week (28 days) production floor minimum.\n\nStatus: This order is approved for standard automated processing.\n\nNext Step: We will proceed with the precision customization parameters provided. Your digital invoice is ready in the portal.`;
       logStatus = 'draft sourcing'; // Keep it in standard workflow instead of locking it!
     }
@@ -185,7 +248,7 @@ export async function POST(req: Request) {
     }
 
     if (isInventoryDepleted) {
-      generatedAiResponse = `Reviewing request parameters: Our physical inventory for this blank style (${depletedProductName}) is currently depleted (requested: ${requestedQuantity}, available stock: ${availableStock}).\n\nStatus: Order locked for manual material allocation / Review Required.\n\nNext Step: This thread has been escalated to a human Admin to review supplier stock and place a mill pre-order. We will work with our supplier to secure the necessary stock to fulfill your order.`;
+      generatedAiResponse = `Reviewing request parameters: Our physical inventory for this style (${depletedProductName}) is currently depleted (requested: ${requestedQuantity}, available stock: ${availableStock}).\n\nStatus: Order locked for manual material allocation / Review Required.\n\nNext Step: This request has been halted due to insufficient stock. Please navigate to the Admin panel to review supplier stock levels or initiate a custom mill replenishment quote.`;
       logStatus = "review required";
     }
 
@@ -200,8 +263,23 @@ export async function POST(req: Request) {
     }
 
     let finalQuoteAmount: string | null = null;
-    if (isGemini) {
+    if (isGemini && logStatus !== "review required" && logStatus !== "escalate_to_admin") {
       logStatus = "approved";
+    }
+
+    const statusLower = (logStatus || "").toLowerCase();
+    const responseLower = (generatedAiResponse || "").toLowerCase();
+    const isUnderReview = 
+      statusLower.includes("review") || 
+      statusLower.includes("escalat") || 
+      statusLower.includes("pending") ||
+      responseLower.includes("review") || 
+      responseLower.includes("escalat") || 
+      responseLower.includes("pending");
+
+    if (isUnderReview) {
+      finalQuoteAmount = null;
+    } else if (logStatus === "draft sourcing" || logStatus === "approved") {
       finalQuoteAmount = computedTotalPrice.toFixed(2);
       generatedAiResponse += `\n\nYour calculated wholesale production quote is $${finalQuoteAmount}. Secure a 30% deposit payment ($${(Number(finalQuoteAmount) * 0.30).toFixed(2)}) below to lock in production.`;
     }
@@ -234,7 +312,7 @@ export async function POST(req: Request) {
     });
 
     // STEP 3: MOCK RE-ROUTING TO SUPPLIER PORTAL
-    if (logStatus === "draft sourcing") {
+    if (logStatus === "draft sourcing" || logStatus === "draft_sourcing") {
       for (const item of cart) {
         const basePrice = item.product?.price || 15.00;
         const quotedCost = basePrice * 0.9; // 10% discount for bulk
@@ -248,13 +326,98 @@ export async function POST(req: Request) {
         });
       }
 
-      // 🤖 BACKGROUND AGENT PROMPT: Proactively message wholesale suppliers via Gemini
-      if (process.env.GEMINI_API_KEY) {
+      // Background Event-Listener Interceptor (Structural Parameter Rules)
+      const validProducts = new Set([
+        "Gildan 18500 Hoodie",
+        "Minimalist Corporate Polo",
+        "Insulated Matte Tumbler",
+        "EDC Tech Organizer Pouch",
+        "Framed Acoustic Art Panel"
+      ]);
+
+      let matchedProduct = "";
+      let matchedQty = 0;
+
+      // 1. Apply rules over the structured cart items snapshot
+      for (const item of cart) {
+        const title = item.product?.title || "";
+        const qty = Number(item.quantity) || 0;
+        const mappedName = mapProductToInventoryItem(title) || "";
+        
+        if (validProducts.has(mappedName) && qty >= 50) {
+          matchedProduct = mappedName;
+          matchedQty = qty;
+          break;
+        }
+      }
+
+      // 2. Fallback: Parse from client message / LLM context
+      if (!matchedProduct || matchedQty < 50) {
+        const combinedText = (clientPrompt + " " + lowercaseAIResponse);
+        for (const prod of validProducts) {
+          if (combinedText.includes(prod.toLowerCase()) || 
+              (prod === "Gildan 18500 Hoodie" && (combinedText.includes("hoodie") || combinedText.includes("windbreaker"))) ||
+              (prod === "Minimalist Corporate Polo" && combinedText.includes("polo")) ||
+              (prod === "Insulated Matte Tumbler" && (combinedText.includes("tumbler") || combinedText.includes("flask"))) ||
+              (prod === "EDC Tech Organizer Pouch" && (combinedText.includes("organizer") || combinedText.includes("pouch"))) ||
+              (prod === "Framed Acoustic Art Panel" && (combinedText.includes("acoustic") || combinedText.includes("panel")))) {
+            
+            const qtyMatch = combinedText.match(/(?:qty|quantity|order|produce|units|pcs)[:\s]*(\d+)/i) || 
+                             combinedText.match(/(\d+)\s*(?:pcs|units|qty|quantity|items|polos|hoodies|tumblers)/i);
+            if (qtyMatch) {
+              const parsedQty = parseInt(qtyMatch[1], 10);
+              if (parsedQty >= 50) {
+                matchedProduct = prod;
+                matchedQty = parsedQty;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Trigger silent background database mutation as an un-awaited detached task
+      if (matchedProduct && matchedQty >= 50) {
+        setImmediate(() => {
+          triggerSupplierPortalPing(generatedInvoiceNumber, matchedProduct, matchedQty).catch(err => {
+            console.error("[Background Task] Supplier notification schedule failed:", err);
+          });
+        });
+      }
+
+      // 🤖 BACKGROUND AGENT PROMPT: Proactively message wholesale suppliers via Ollama (with Gemini fallback)
+      let outreachText = "";
+      let outreachSuccess = false;
+
+      const systemInstruction = "You are the StitchHub Procurement AI Agent. Your job is to automatically message our wholesale manufacturing suppliers the moment an RFQ is opened. Write a concise, professional message asking them to confirm availability and submit a bulk quote for the requested items.";
+      const promptText = `${systemInstruction}\n\nInvoice/Order ID: ${generatedInvoiceNumber}\nItems list:\n${JSON.stringify(cart.map((item: any) => ({ title: item.product?.title, qty: item.quantity })), null, 2)}`;
+
+      try {
+        const ollamaOutreachResponse = await fetch("http://localhost:11434/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "stitchhub_v5",
+            prompt: promptText,
+            stream: false,
+          }),
+          signal: AbortSignal.timeout(3000), // Timeout fast to fall back to Gemini
+        });
+
+        if (ollamaOutreachResponse.ok) {
+          const ollamaOutreachData = await ollamaOutreachResponse.json();
+          outreachText = ollamaOutreachData.response || "";
+          if (outreachText.trim()) {
+            outreachSuccess = true;
+          }
+        }
+      } catch (ollamaOutreachError) {
+        console.warn("[Background Task] Local Ollama outreach failed, falling back to Gemini:", ollamaOutreachError);
+      }
+
+      if (!outreachSuccess && process.env.GEMINI_API_KEY) {
         try {
           const geminiModel = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
-          const systemInstruction = "You are the StitchHub Procurement AI Agent. Your job is to automatically message our wholesale manufacturing suppliers the moment an RFQ is opened. Write a concise, professional message asking them to confirm availability and submit a bulk quote for the requested items.";
-          const promptText = `${systemInstruction}\n\nInvoice/Order ID: ${generatedInvoiceNumber}\nItems list:\n${JSON.stringify(cart.map((item: any) => ({ title: item.product?.title, qty: item.quantity })), null, 2)}`;
-
           const geminiResponse = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${process.env.GEMINI_API_KEY}`,
             {
@@ -268,17 +431,27 @@ export async function POST(req: Request) {
 
           if (geminiResponse.ok) {
             const geminiData = await geminiResponse.json();
-            const outreachText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            outreachText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
             if (outreachText.trim()) {
-              await db.insert(supplierMessages).values({
-                orderId: generatedInvoiceNumber,
-                sender: "admin",
-                messageText: outreachText,
-              });
+              outreachSuccess = true;
             }
           }
-        } catch (agentErr) {
-          console.error("Autonomous supplier outreach generation failed:", agentErr);
+        } catch (geminiOutreachError) {
+          console.error("[Background Task] Gemini fallback outreach failed:", geminiOutreachError);
+        }
+      }
+
+      if (outreachSuccess && outreachText.trim()) {
+        try {
+          await db.insert(supplierMessages).values({
+            orderId: generatedInvoiceNumber,
+            sender: "admin",
+            messageText: outreachText,
+            channelType: "supplier_portal"
+          });
+          console.log(`[Background Task] Successfully logged proactive supplier message for ${generatedInvoiceNumber}`);
+        } catch (dbErr) {
+          console.error("[Background Task] Failed to insert supplier outreach message to DB:", dbErr);
         }
       }
     }
@@ -373,5 +546,20 @@ export async function POST(req: Request) {
 
     console.error("Critical core failure:", error);
     return NextResponse.json({ error: "Internal agent reasoning breakdown." }, { status: 500 });
+  }
+}
+
+async function triggerSupplierPortalPing(orderId: string, productName: string, quantity: number) {
+  try {
+    const messageText = `RFQ #${orderId} — Automated parameter verification triggered. Target volume: ${quantity} units. Please confirm production floor raw stock availability.`;
+    await db.insert(supplierMessages).values({
+      orderId: orderId,
+      sender: "stitchhub_procurement_agent",
+      messageText: messageText,
+      channelType: "supplier_portal"
+    });
+    console.log(`[Background Task] Successfully notified supplier portal for order ${orderId}`);
+  } catch (err) {
+    console.error("[Background Task] Autonomous supplier notification failed:", err);
   }
 }

@@ -86,18 +86,19 @@ export default function Navbar() {
                 <div className="absolute right-0 mt-3 w-56 bg-[#121316] border border-zinc-800 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.6)] py-2 z-50 animate-scaleIn">
                   {/* User info header */}
                   <div className="px-4 py-3 border-b border-zinc-900">
-                    <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Partner Account</p>
                     <p className="text-sm font-semibold text-white truncate mt-0.5">{session.user.name}</p>
                     <p className="text-xs text-zinc-400 truncate mt-0.5">{session.user.email}</p>
                   </div>
 
                   <Link href="/profile" onClick={() => setDropdownOpen(false)} className="block w-full text-left px-4 py-2.5 text-xs font-medium text-zinc-300 hover:text-[#d4af37] hover:bg-white/5 transition-colors">
-                    Partner Profile
+                    Profile
                   </Link>
 
-                  <Link href="/products/checkout" onClick={() => setDropdownOpen(false)} className="block w-full text-left px-4 py-2.5 text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/5 transition-colors">
-                    Order Workspace
-                  </Link>
+                  {session.user.isAdmin && (
+                    <Link href="/admin" onClick={() => setDropdownOpen(false)} className="block w-full text-left px-4 py-2.5 text-xs font-medium text-zinc-300 hover:text-[#d4af37] hover:bg-white/5 transition-colors">
+                      Admin Panel
+                    </Link>
+                  )}
 
                   {/* signOut handler — clears session and redirects */}
                   <div className="border-t border-zinc-900 mt-1 pt-1">

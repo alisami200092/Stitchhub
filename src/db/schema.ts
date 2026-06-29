@@ -85,7 +85,8 @@ export const materialsInventory = pgTable("materials_inventory", {
 export const supplierMessages = pgTable("supplier_messages", {
   id: serial("id").primaryKey(),
   orderId: text("order_id").notNull(),
-  sender: text("sender").notNull(), // 'admin' or 'supplier'
+  sender: text("sender").notNull(), // 'admin' or 'supplier' or 'stitchhub_procurement_agent'
   messageText: text("message_text").notNull(),
+  channelType: text("channel_type").default("supplier_portal").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

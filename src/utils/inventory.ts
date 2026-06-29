@@ -7,19 +7,19 @@ export function mapProductToInventoryItem(productTitle: string): string | null {
   const lower = productTitle.toLowerCase();
   
   if (lower.includes("hoodie") || lower.includes("windbreaker")) {
-    return "Premium Heavyweight Hoodie (Stitch Hub Original)";
+    return "Gildan 18500 Hoodie";
   }
   if (lower.includes("polo")) {
-    return "Minimalist Corporate Polo (Stitch Hub Original)";
+    return "Minimalist Corporate Polo";
   }
   if (lower.includes("tumbler") || lower.includes("flask")) {
-    return "Insulated Matte Tumbler (Stitch Hub Original)";
+    return "Insulated Matte Tumbler";
   }
   if (lower.includes("organizer") || lower.includes("pouch")) {
-    return "EDC Tech Organizer Pouch (Stitch Hub Original)";
+    return "EDC Tech Organizer Pouch";
   }
   if (lower.includes("acoustic") || lower.includes("panel")) {
-    return "Framed Acoustic Art Panel (Stitch Hub Original)";
+    return "Framed Acoustic Art Panel";
   }
   
   return null;

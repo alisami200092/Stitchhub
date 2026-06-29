@@ -1,18 +1,18 @@
 "use client";
 
 import React from "react";
-import type { ProfileTab } from "@/types";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 interface ProfileSidebarProps {
-  activeTab: ProfileTab;
   hasEscalations: boolean;
-  onTabChange: (tab: ProfileTab) => void;
 }
 
-const tabs: { key: ProfileTab; label: string; icon: React.ReactNode }[] = [
+const tabs = [
   {
     key: "inbox",
     label: "My Inbox",
+    href: "/profile/inbox",
     icon: (
       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4a2 2 0 012-2m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
@@ -20,8 +20,9 @@ const tabs: { key: ProfileTab; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
-    key: "account",
+    key: "settings",
     label: "Profile Settings",
+    href: "/profile/settings",
     icon: (
       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -31,6 +32,7 @@ const tabs: { key: ProfileTab; label: string; icon: React.ReactNode }[] = [
   {
     key: "security",
     label: "Security & 2FA",
+    href: "/profile/security",
     icon: (
       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -40,6 +42,7 @@ const tabs: { key: ProfileTab; label: string; icon: React.ReactNode }[] = [
   {
     key: "ledger",
     label: "Order History",
+    href: "/profile/history",
     icon: (
       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 00-2 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -48,15 +51,17 @@ const tabs: { key: ProfileTab; label: string; icon: React.ReactNode }[] = [
   },
 ];
 
-export default function ProfileSidebar({ activeTab, hasEscalations, onTabChange }: ProfileSidebarProps) {
+export default function ProfileSidebar({ hasEscalations }: ProfileSidebarProps) {
+  const pathname = usePathname();
+
   return (
     <div className="flex flex-col space-y-2">
-      {tabs.map(({ key, label, icon }) => {
-        const isActive = activeTab === key;
+      {tabs.map(({ key, label, href, icon }) => {
+        const isActive = pathname === href || (key === "ledger" && pathname.startsWith("/profile/history"));
         return (
-          <button
+          <Link
             key={key}
-            onClick={() => onTabChange(key)}
+            href={href}
             className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl border font-medium text-xs transition-all ${
               isActive
                 ? "bg-[#121316] text-white border-zinc-700 shadow-xl"
@@ -70,7 +75,7 @@ export default function ProfileSidebar({ activeTab, hasEscalations, onTabChange 
             {key === "inbox" && hasEscalations && (
               <span className="h-2 w-2 rounded-full bg-red-500 ring-4 ring-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.6)] animate-pulse" />
             )}
-          </button>
+          </Link>
         );
       })}
     </div>

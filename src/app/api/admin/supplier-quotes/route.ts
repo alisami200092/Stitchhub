@@ -166,21 +166,44 @@ export async function POST(req: Request) {
 
         // Fallback items and price calculation
         let items = log?.items || invoice?.itemsSnapshot || [];
-        let finalPrice = log?.totalPrice || (invoice?.totalAmount && invoice.totalAmount !== "Pending Dynamic Quote Lock" ? invoice.totalAmount.replace(/[$,]/g, "") : null);
-        let unitPrice = log?.unitPrice;
+        const quotedCost = Number(quote.quotedCostPerUnit);
+        
+        let totalQuantity = 0;
+        if (Array.isArray(items)) {
+          for (const item of items) {
+            totalQuantity += Number(item.quantity) || 0;
+          }
+        }
+        if (totalQuantity === 0) {
+          totalQuantity = 120; // Fallback
+        }
 
-        if (!finalPrice && items && Array.isArray(items) && items.length > 0) {
-          let calcTotal = 0;
-          let calcUnit = 0;
-          items.forEach((item: any) => {
-            const prod = item.product || {};
-            const qty = item.quantity || 0;
-            const res = calculateTieredPricing(prod.id || "", qty, prod.price || 0);
-            calcTotal += res.totalPrice;
-            calcUnit = res.unitPrice;
-          });
-          finalPrice = calcTotal.toFixed(2);
-          unitPrice = calcUnit.toFixed(2);
+        const calculatedFinalPrice = (totalQuantity * quotedCost).toFixed(2);
+        const calculatedUnitPrice = quotedCost.toFixed(2);
+        const depositAmount = (Number(calculatedFinalPrice) * 0.3).toFixed(2);
+
+        const displayTotal = `$${parseFloat(calculatedFinalPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const displayDeposit = `$${parseFloat(depositAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        const systemMsg = `Reviewing request parameters: Sourcing negotiation complete. We have successfully locked in your target price of $${parseFloat(calculatedUnitPrice).toFixed(2)}/unit.\n\nStatus: Approved.\n\nNext Step: Please navigate to your Profile/Billing Dashboard to clear the 30% production deposit (${displayDeposit}) to secure your factory queue slot.\n\nBest regards,\nStitchHub Operations`;
+
+        let updatedAiResponseDraft = systemMsg;
+        if (log && log.aiResponseDraft) {
+          try {
+            const parsed = JSON.parse(log.aiResponseDraft);
+            if (Array.isArray(parsed)) {
+              parsed.push({
+                role: "assistant",
+                content: systemMsg,
+                isHuman: true
+              });
+              updatedAiResponseDraft = JSON.stringify(parsed);
+            } else {
+              updatedAiResponseDraft = log.aiResponseDraft + "\n\n" + systemMsg;
+            }
+          } catch (e) {
+            updatedAiResponseDraft = log.aiResponseDraft + "\n\n" + systemMsg;
+          }
         }
 
         if (log) {
@@ -189,19 +212,20 @@ export async function POST(req: Request) {
             .update(emailLogs)
             .set({ 
               status: "approved",
-              totalPrice: finalPrice,
-              unitPrice: unitPrice,
-              items: items
+              totalPrice: calculatedFinalPrice,
+              unitPrice: calculatedUnitPrice,
+              items: items,
+              aiResponseDraft: updatedAiResponseDraft
             })
             .where(eq(emailLogs.id, log.id));
         }
 
         if (invoice) {
-          const displayTotal = finalPrice ? `$${parseFloat(finalPrice).toFixed(2)}` : invoice.totalAmount;
           await tx
             .update(invoices)
             .set({
               totalAmount: displayTotal,
+              status: "unpaid",
               itemsSnapshot: items
             })
             .where(eq(invoices.invoiceNumber, quote.orderId));

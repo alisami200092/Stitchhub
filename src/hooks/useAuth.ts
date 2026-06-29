@@ -26,6 +26,8 @@ export function useAuth() {
   const [rememberMe, setRememberMe] = useState(() => {
     try { return !!localStorage.getItem("remembered_email"); } catch { return false; }
   });
+  const [isMfaChallenge, setIsMfaChallenge] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +49,20 @@ export function useAuth() {
           setError(signInError.message || "Invalid email or password. Please try again.");
           setLoading(false);
         } else {
+          // Check if MFA verification is required
+          const { data: aalData, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+          if (aalError) {
+            setError(aalError.message || "Security assurance validation failed.");
+            setLoading(false);
+            return;
+          }
+
+          if (aalData.nextLevel === "aal2" && aalData.currentLevel === "aal1") {
+            setIsMfaChallenge(true);
+            setLoading(false);
+            return;
+          }
+
           // Persist (or clear) remembered email based on rememberMe toggle
           try {
             if (rememberMe) {
@@ -153,6 +169,71 @@ export function useAuth() {
     }
   };
 
+  const handleMfaVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setLoading(true);
+
+    if (mfaCode.length !== 6) {
+      setError("Please enter a valid 6-digit code.");
+      setLoading(false);
+      return;
+    }
+
+    const supabase = createClient();
+    try {
+      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+      if (listError) throw listError;
+
+      const verifiedFactor = factors?.all?.find(
+        (f) => f.factor_type === "totp" && f.status === "verified"
+      );
+
+      if (!verifiedFactor) {
+        throw new Error("No active authenticator factor found.");
+      }
+
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: verifiedFactor.id,
+      });
+      if (challengeError) throw challengeError;
+
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: verifiedFactor.id,
+        challengeId: challengeData.id,
+        code: mfaCode,
+      });
+      if (verifyError) throw verifyError;
+
+      try {
+        if (rememberMe) {
+          localStorage.setItem("remembered_email", email);
+        } else {
+          localStorage.removeItem("remembered_email");
+        }
+      } catch (e) {
+        console.warn("Failed to write to localStorage:", e);
+      }
+
+      setSuccess("Verification successful! Directing to workspace...");
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 800);
+    } catch (err: any) {
+      setError(err?.message || "Invalid or expired authenticator code. Verification failed.");
+      setLoading(false);
+    }
+  };
+
+  const cancelMfaChallenge = () => {
+    setIsMfaChallenge(false);
+    setMfaCode("");
+    setError("");
+    const supabase = createClient();
+    supabase.auth.signOut();
+  };
+
   return {
     isLogin,
     loading,
@@ -166,8 +247,13 @@ export function useAuth() {
     setPassword,
     rememberMe,
     setRememberMe,
+    isMfaChallenge,
+    mfaCode,
+    setMfaCode,
     handleSubmit,
     toggleMode,
     handleForgotPassword,
+    handleMfaVerify,
+    cancelMfaChallenge,
   };
 }

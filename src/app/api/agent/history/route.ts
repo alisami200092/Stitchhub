@@ -60,11 +60,20 @@ export async function GET() {
         }
       }
 
-      if (isEscalated && log.status !== "review_required" && log.status !== "approved" && log.status !== "processing" && log.status !== "shipping" && log.status !== "delivered") {
-        log.status = "review_required";
+      if (isEscalated && 
+          log.status !== "review_required" && 
+          log.status !== "review required" && 
+          log.status !== "escalate_to_admin" && 
+          log.status !== "approved" && 
+          log.status !== "processing" && 
+          log.status !== "shipping" && 
+          log.status !== "delivered") {
+        const hasEscalateToAdminKeyword = String(log.aiResponseDraft).includes("escalate_to_admin");
+        const healStatus = hasEscalateToAdminKeyword ? "escalate_to_admin" : "review required";
+        log.status = healStatus;
         await db
           .update(emailLogs)
-          .set({ status: "review_required" })
+          .set({ status: healStatus })
           .where(eq(emailLogs.id, log.id));
       }
     }

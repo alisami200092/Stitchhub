@@ -41,7 +41,7 @@ export function useSupplierMessages() {
       const { data: logs } = await supabase
         .from("email_logs")
         .select("metadata")
-        .in("status", ["draft_sourcing", "review_required"]);
+        .in("status", ["draft_sourcing", "review_required", "draft sourcing", "review required"]);
       const logOrderIds = logs ? logs.map((l) => (l.metadata as any)?.invoiceNumber).filter(Boolean) : [];
 
       // Combine and get unique IDs

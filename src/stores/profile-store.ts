@@ -32,7 +32,7 @@ interface ProfileState {
   setProfileName: (name: string) => void;
   setRoutingEmail: (email: string) => void;
   setIsUpdatingProfile: (val: boolean) => void;
-  toggleMfa: () => void;
+  setMfaEnabled: (mfaEnabled: boolean) => void;
 }
 
 export const useProfileStore = create<ProfileState>()((set) => ({
@@ -56,5 +56,5 @@ export const useProfileStore = create<ProfileState>()((set) => ({
   setProfileName: (profileName) => set({ profileName }),
   setRoutingEmail: (routingEmail) => set({ routingEmail }),
   setIsUpdatingProfile: (isUpdatingProfile) => set({ isUpdatingProfile }),
-  toggleMfa: () => set((state) => ({ mfaEnabled: !state.mfaEnabled })),
+  setMfaEnabled: (mfaEnabled) => set({ mfaEnabled }),
 }));

@@ -31,7 +31,7 @@ export function useActiveRequests() {
       const { data: logs, error: logsError } = await supabase
         .from("email_logs")
         .select("*")
-        .in("status", ["draft_sourcing", "review_required"]);
+        .in("status", ["draft_sourcing", "review_required", "draft sourcing", "review required"]);
 
       if (logsError) {
         console.error("Error fetching logs:", logsError);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type Message = {
   role: "user" | "assistant";
@@ -11,13 +12,14 @@ export type Message = {
 export type ChatThread = {
   id: string;
   subject: string;
-  status: "draft sourcing" | "review required" | "approved" | "processing" | "shipping" | "delivered";
+  status: "draft sourcing" | "review required" | "approved" | "processing" | "shipping" | "delivered" | "escalate_to_admin";
   messages: Message[];
   finalQuoteAmount?: string | null;
   agentOverride?: boolean;
 };
 
 export function useChat() {
+  const queryClient = useQueryClient();
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState<boolean>(false);
@@ -51,7 +53,9 @@ export function useChat() {
             }
 
             let mappedStatus = log.status || "draft sourcing";
-            if (mappedStatus === "escalated" || mappedStatus === "pending" || mappedStatus === "review_required" || mappedStatus === "review required") {
+            if (mappedStatus === "escalate_to_admin") {
+              mappedStatus = "escalate_to_admin";
+            } else if (mappedStatus === "escalated" || mappedStatus === "pending" || mappedStatus === "review_required" || mappedStatus === "review required") {
               mappedStatus = "review required";
             } else if (mappedStatus === "drafted" || mappedStatus === "draft_sourcing" || mappedStatus === "draft sourcing") {
               mappedStatus = "draft sourcing";
@@ -72,8 +76,11 @@ export function useChat() {
                   msg.content.toLowerCase().includes("custom mill team"))
             );
 
-            if (hasEscalationKeyword && (mappedStatus === "draft sourcing" || mappedStatus === "review required")) {
-              mappedStatus = "review required";
+            if (hasEscalationKeyword && (mappedStatus === "draft sourcing" || mappedStatus === "review required" || mappedStatus === "escalate_to_admin")) {
+              const containsEscalateToAdmin = history.some(
+                (msg) => msg.role === "assistant" && !msg.isHuman && msg.content.includes("escalate_to_admin")
+              );
+              mappedStatus = containsEscalateToAdmin ? "escalate_to_admin" : "review required";
             }
 
             return {
@@ -129,10 +136,15 @@ export function useChat() {
       const aiMessage: Message = { role: "assistant", content: data.reply };
       const finalMessages = [...updatedMessages, aiMessage];
 
-      // Update UI with AI reply
+      // Update UI with AI reply and status
       setThreads((prev) =>
-        prev.map((t) => (t.id === activeThreadId ? { ...t, messages: finalMessages } : t))
+        prev.map((t) => (t.id === activeThreadId ? { ...t, messages: finalMessages, status: data.status || t.status } : t))
       );
+
+      // Invalidate query caches to prevent stale snapshots
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["active-order"] });
+      queryClient.invalidateQueries({ queryKey: ["history"] });
 
     } catch (error) {
       console.error("Chat Error:", error);

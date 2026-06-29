@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
-import { emailLogs, invoices, materialsInventory, supplierQuotes } from "@/db/schema";
+import { emailLogs, invoices, materialsInventory, supplierQuotes, supplierMessages } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { calculateTieredPricing } from "@/utils/pricing";
 import { mapProductToInventoryItem } from "@/utils/inventory";
@@ -81,12 +81,24 @@ export async function POST(req: Request) {
       const lowercaseAIResponse = aiResponse.toLowerCase();
 
       // 1. TIMELINE & INDIVIDUALIZATION SCANNERS
-      const hasBannedModifications = clientPrompt.includes("individual") || clientPrompt.includes("excel") || clientPrompt.includes("unique name") || clientPrompt.includes("bamboo") || clientPrompt.includes("name");
+      const hasBannedModifications = 
+        clientPrompt.includes("individual") || 
+        clientPrompt.includes("excel") || 
+        clientPrompt.includes("unique name") || 
+        clientPrompt.includes("bamboo") || 
+        clientPrompt.includes("name") ||
+        clientPrompt.includes("cut-and-sew") ||
+        clientPrompt.includes("distress") ||
+        clientPrompt.includes("350 gsm");
       const containsAIHallucination = lowercaseAIResponse.includes("approved but will require manual handling") || lowercaseAIResponse.includes("does not meet the minimum order requirement");
 
       // 🛑 FAIL-SAFE: If the AI gets confused and approves individualization or breaks math, override it entirely
       if (hasBannedModifications || containsAIHallucination) {
-        aiResponse = `Reviewing request parameters: Individualized garment customization or structural material swaps are beyond our standard automated wholesale capabilities.\n\nStatus: This request requires specialized manual processing and cannot be automated.\n\nNext Step: This thread has been escalated to a human Admin for a manual custom mill quote review.`;
+        // Cleanly pass the model's rejection message if it already exists
+        const alreadyRejected = lowercaseAIResponse.includes("reject") || lowercaseAIResponse.includes("escalate") || lowercaseAIResponse.includes("<action>pause</action>") || lowercaseAIResponse.includes("pause") || lowercaseAIResponse.includes("unable") || lowercaseAIResponse.includes("beyond our standard");
+        if (!alreadyRejected) {
+          aiResponse = `Reviewing request parameters: Individualized garment customization or structural material swaps are beyond our standard automated wholesale capabilities.\n\nStatus: This request requires specialized manual processing and cannot be automated.\n\nNext Step: This thread has been escalated to a human Admin for a manual custom mill quote review.`;
+        }
         finalStatus = 'review required'; // 🔄 This forces the status flip in database to freeze the client UI input!
       }
 
@@ -123,7 +135,11 @@ export async function POST(req: Request) {
         lowercaseAIResponse.includes("negotiation complete");
 
       if (isInteractionConcluded && finalStatus === "draft sourcing") {
-        finalStatus = "review required";
+        if (lowercaseAIResponse.includes("escalate_to_admin") || lowercaseAIResponse.includes("pause")) {
+          finalStatus = "escalate_to_admin";
+        } else {
+          finalStatus = "review required";
+        }
       }
 
       // 🛡️ PRE-APPROVAL INVENTORY CHECK / PRICING COMPUTATION
@@ -195,9 +211,8 @@ export async function POST(req: Request) {
         replyContent = aiResponse;
       }
 
-      // 💾 SAVE PRICE & DETAILS TO DATABASE ON TRANSITION TO REVIEW REQUIRED
-      if (finalStatus === "review required" || finalStatus === "review_required") {
-        finalStatus = "review required"; // Normalize key to space-separated state
+      // 💾 SAVE PRICE & DETAILS TO DATABASE ON TRANSITION TO REVIEW REQUIRED OR ESCALATE TO ADMIN
+      if (finalStatus === "review required" || finalStatus === "review_required" || finalStatus === "escalate_to_admin") {
         
         let computedUnitPrice = 0;
         let computedTotalPrice = 0;
@@ -227,6 +242,75 @@ export async function POST(req: Request) {
                 totalAmount: `$${computedTotalPrice.toFixed(2)}`
               })
               .where(eq(invoices.invoiceNumber, invoiceNumber));
+          }
+        }
+      }
+
+      // Background Event-Listener Interceptor (Structural Parameter Rules)
+      if (
+        currentStatus === "draft sourcing" ||
+        finalStatus === "draft sourcing" ||
+        currentStatus === "draft_sourcing" ||
+        finalStatus === "draft_sourcing"
+      ) {
+        const validProducts = new Set([
+          "Gildan 18500 Hoodie",
+          "Minimalist Corporate Polo",
+          "Insulated Matte Tumbler",
+          "EDC Tech Organizer Pouch",
+          "Framed Acoustic Art Panel"
+        ]);
+
+        let matchedProduct = "";
+        let matchedQty = 0;
+
+        // 1. Apply rules over the structured cart items snapshot
+        for (const item of cartItems) {
+          const title = item.product?.title || "";
+          const qty = Number(item.quantity) || 0;
+          const mappedName = mapProductToInventoryItem(title) || "";
+          
+          if (validProducts.has(mappedName) && qty >= 50) {
+            matchedProduct = mappedName;
+            matchedQty = qty;
+            break;
+          }
+        }
+
+        // 2. Fallback: Parse from client message / LLM context
+        if (!matchedProduct || matchedQty < 50) {
+          const combinedText = (clientPrompt + " " + lowercaseAIResponse);
+          for (const prod of validProducts) {
+            if (combinedText.includes(prod.toLowerCase()) || 
+                (prod === "Gildan 18500 Hoodie" && (combinedText.includes("hoodie") || combinedText.includes("windbreaker"))) ||
+                (prod === "Minimalist Corporate Polo" && combinedText.includes("polo")) ||
+                (prod === "Insulated Matte Tumbler" && (combinedText.includes("tumbler") || combinedText.includes("flask"))) ||
+                (prod === "EDC Tech Organizer Pouch" && (combinedText.includes("organizer") || combinedText.includes("pouch"))) ||
+                (prod === "Framed Acoustic Art Panel" && (combinedText.includes("acoustic") || combinedText.includes("panel")))) {
+              
+              const qtyMatch = combinedText.match(/(?:qty|quantity|order|produce|units|pcs)[:\s]*(\d+)/i) || 
+                               combinedText.match(/(\d+)\s*(?:pcs|units|qty|quantity|items|polos|hoodies|tumblers)/i);
+              if (qtyMatch) {
+                const parsedQty = parseInt(qtyMatch[1], 10);
+                if (parsedQty >= 50) {
+                  matchedProduct = prod;
+                  matchedQty = parsedQty;
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        // 3. Trigger silent background database mutation as an un-awaited detached task
+        if (matchedProduct && matchedQty >= 50) {
+          const activeOrderId = invoiceNumber || threadId;
+          if (activeOrderId) {
+            setImmediate(() => {
+              triggerSupplierPortalPing(activeOrderId, matchedProduct, matchedQty).catch(err => {
+                console.error("[Background Task] Supplier notification schedule failed:", err);
+              });
+            });
           }
         }
       }
@@ -296,7 +380,7 @@ export async function POST(req: Request) {
     }
 
     // Send the reply back to the React frontend
-    return NextResponse.json({ reply: replyContent });
+    return NextResponse.json({ reply: replyContent, status: finalStatus });
 
   } catch (error) {
     console.error("Chat API Core Error:", error);
@@ -304,5 +388,20 @@ export async function POST(req: Request) {
       { error: "Internal chat agent reasoning failure." },
       { status: 500 }
     );
+  }
+}
+
+async function triggerSupplierPortalPing(orderId: string, productName: string, quantity: number) {
+  try {
+    const messageText = `RFQ #${orderId} — Automated parameter verification triggered. Target volume: ${quantity} units. Please confirm production floor raw stock availability.`;
+    await db.insert(supplierMessages).values({
+      orderId: orderId,
+      sender: "stitchhub_procurement_agent",
+      messageText: messageText,
+      channelType: "supplier_portal"
+    });
+    console.log(`[Background Task] Successfully notified supplier portal for order ${orderId}`);
+  } catch (err) {
+    console.error("[Background Task] Autonomous supplier notification failed:", err);
   }
 }

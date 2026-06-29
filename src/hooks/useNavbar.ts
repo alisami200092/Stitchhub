@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from "react";
 import { useSupabase } from "../providers/SupabaseProvider";
 import { createClient } from "../utils/supabase/client";
 import { useCartStore } from "../stores/cart-store";
+import { isAdmin } from "../utils/admin";
 
 /**
  * Returns a normalized session (matching the shape the Navbar expects),
@@ -23,11 +24,12 @@ export function useNavbar() {
 
   const status = isLoading ? "loading" : session ? "authenticated" : "unauthenticated";
 
-  // Map Supabase session shape to { user: { name, email } } as Navbar components expect
+  // Map Supabase session shape to { user: { name, email, isAdmin } } as Navbar components expect
   const normalizedSession = session?.user ? {
     user: {
       name: session.user.user_metadata.name || session.user.email?.split("@")[0] || "User",
       email: session.user.email,
+      isAdmin: isAdmin(session.user.email),
     }
   } : null;
 

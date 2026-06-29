@@ -30,28 +30,28 @@ async function main() {
 
   const items = [
     {
-      productName: "Premium Heavyweight Hoodie (Stitch Hub Original)",
-      stockQuantity: 10, // Depleted (to test shortage with 150 request)
+      productName: "Gildan 18500 Hoodie",
+      stockQuantity: 150,
       reorderLevel: 20,
     },
     {
-      productName: "Minimalist Corporate Polo (Stitch Hub Original)",
+      productName: "Minimalist Corporate Polo",
+      stockQuantity: 200,
+      reorderLevel: 20,
+    },
+    {
+      productName: "Insulated Matte Tumbler",
+      stockQuantity: 250,
+      reorderLevel: 20,
+    },
+    {
+      productName: "EDC Tech Organizer Pouch",
       stockQuantity: 100,
       reorderLevel: 20,
     },
     {
-      productName: "Insulated Matte Tumbler (Stitch Hub Original)",
-      stockQuantity: 100,
-      reorderLevel: 20,
-    },
-    {
-      productName: "EDC Tech Organizer Pouch (Stitch Hub Original)",
-      stockQuantity: 100,
-      reorderLevel: 20,
-    },
-    {
-      productName: "Framed Acoustic Art Panel (Stitch Hub Original)",
-      stockQuantity: 100,
+      productName: "Framed Acoustic Art Panel",
+      stockQuantity: 120,
       reorderLevel: 20,
     },
   ];
