@@ -54,6 +54,31 @@ async function main() {
       stockQuantity: 120,
       reorderLevel: 20,
     },
+    {
+      productName: "Cordura Ballistic Tech Briefcase",
+      stockQuantity: 80,
+      reorderLevel: 15,
+    },
+    {
+      productName: "Natural Merino Wool Desk Mat",
+      stockQuantity: 140,
+      reorderLevel: 25,
+    },
+    {
+      productName: "Rugged Waxed Canvas Weekend Duffel",
+      stockQuantity: 90,
+      reorderLevel: 15,
+    },
+    {
+      productName: "Minimalist MagSafe Matte Aluminum Wallet",
+      stockQuantity: 180,
+      reorderLevel: 30,
+    },
+    {
+      productName: "Full-Grain Leather Hardware Loop Keychain",
+      stockQuantity: 300,
+      reorderLevel: 50,
+    },
   ];
 
   for (const item of items) {

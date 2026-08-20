@@ -121,5 +121,60 @@ export const catalog: Product[] = [
     description: "Interior tech-office acoustic panels featuring premium sound dampening insulation, wrapped in custom full-bleed digital canvas with sleek framing options.",
     moq: 50,
     customization: "Full-Bleed Digital Print | Custom Color Frame"
+  },
+  {
+    id: "cordura-ballistic-briefcase",
+    title: "Cordura Ballistic Tech Briefcase",
+    cat: "Gear (Luggage & Briefcases)",
+    img: "/images/products/accessories/tech_organizer.webp",
+    price: 89.99,
+    priceRange: "$48.00 - $89.99",
+    description: "Heavy military-grade woven nylon briefcase engineered for extreme durability. Approved for laser-engraved matte black metal plates or high-density silicone prints. (Direct fine embroidery strictly forbidden due to fabric tearing risks).",
+    moq: 50,
+    customization: "Laser-Engraved Metal Plates | High-Density Silicone Prints"
+  },
+  {
+    id: "merino-wool-desk-mat",
+    title: "Natural Merino Wool Desk Mat",
+    cat: "Office (Deskware)",
+    img: "/images/products/accessories/acoustic_panel.webp",
+    price: 34.99,
+    priceRange: "$18.50 - $34.99",
+    description: "Pressed organic Merino wool felt providing a premium workspace layer. Approved for sewn full-grain leather accent patches or clean laser-etched branding. (Surface ink printing or heat-press methods forbidden).",
+    moq: 50,
+    customization: "Sewn Leather Patches | Laser-Etched Branding"
+  },
+  {
+    id: "waxed-canvas-duffel",
+    title: "Rugged Waxed Canvas Weekend Duffel",
+    cat: "Travel (Duffel Bags)",
+    img: "/images/products/accessories/pouch.webp",
+    price: 79.99,
+    priceRange: "$42.00 - $79.99",
+    description: "Heavyweight water-resistant waxed cotton canvas travel duffel. Approved for debossed genuine leather labels or heavyweight stitched cotton webbing patches. (Waxed coating prevents screen printing ink adhesion or heat-press setting).",
+    moq: 50,
+    customization: "Debossed Leather Labels | Stitched Cotton Webbing Patches"
+  },
+  {
+    id: "magsafe-matte-wallet",
+    title: "Minimalist MagSafe Matte Aluminum Wallet",
+    cat: "Gear (EDC Wallets)",
+    img: "/images/products/accessories/tech_organizer.webp",
+    price: 29.99,
+    priceRange: "$15.00 - $29.99",
+    description: "Precision CNC-machined aerospace-grade aluminum cardholder with integrated MagSafe and RFID-blocking core. Approved for high-precision fiber laser marking and deep diamond engraving. (Surface multi-color printing rejected).",
+    moq: 50,
+    customization: "Fiber Laser Marking | CNC Diamond Engraving"
+  },
+  {
+    id: "leather-loop-keychain",
+    title: "Full-Grain Leather Hardware Loop Keychain",
+    cat: "Gear (EDC Keychains)",
+    img: "/images/products/accessories/pouch.webp",
+    price: 14.99,
+    priceRange: "$6.50 - $14.99",
+    description: "Multi-surface hybrid EDC accessory combining vegetable-tanned full-grain leather and stainless steel hardware rings. Approved for deep blind debossing and laser-etched hardware rings (requires dual setup pricing).",
+    moq: 50,
+    customization: "Blind Debossing (Leather) | Laser-Etched Hardware Rings"
   }
 ];

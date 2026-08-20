@@ -41,6 +41,11 @@ export default function ProductsPage() {
     "Insulated Matte Tumbler": 3,
     "EDC Tech Organizer Pouch": 4,
     "Framed Acoustic Art Panel": 5,
+    "Cordura Ballistic Tech Briefcase": 6,
+    "Natural Merino Wool Desk Mat": 7,
+    "Rugged Waxed Canvas Weekend Duffel": 8,
+    "Minimalist MagSafe Matte Aluminum Wallet": 9,
+    "Full-Grain Leather Hardware Loop Keychain": 10,
   };
 
   const allBaseTitlesInFiltered = Object.keys(groupsMap);

@@ -14,6 +14,11 @@ const categoryOptions = [
   { value: "Drinkware (Tumblers)", label: "Drinkware (Tumblers)" },
   { value: "Gear (Organizer Pouches)", label: "Gear (Organizer Pouches)" },
   { value: "Office (Acoustic Panels)", label: "Office (Acoustic Panels)" },
+  { value: "Gear (Luggage & Briefcases)", label: "Gear (Luggage & Briefcases)" },
+  { value: "Office (Deskware)", label: "Office (Deskware)" },
+  { value: "Travel (Duffel Bags)", label: "Travel (Duffel Bags)" },
+  { value: "Gear (EDC Wallets)", label: "Gear (EDC Wallets)" },
+  { value: "Gear (EDC Keychains)", label: "Gear (EDC Keychains)" },
 ];
 
 export default function AdminProductsPage() {

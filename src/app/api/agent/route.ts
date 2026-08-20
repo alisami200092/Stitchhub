@@ -8,6 +8,7 @@ import { BrevoClient } from '@getbrevo/brevo';
 import { AGENT_SYSTEM_PROMPT } from "@/utils/prompts";
 import { calculateTieredPricing } from "@/utils/pricing";
 import { mapProductToInventoryItem } from "@/utils/inventory";
+import { retrieveCatalogSpecs } from "@/lib/pinecone";
 
 /**
  * POST /api/agent
@@ -102,7 +103,12 @@ export async function POST(req: Request) {
       });
     }
 
-    /* ── Context prompt: inject user identity, cart manifest, and constraints ── */
+    /* ── Vector Context: Retrieve dynamic Pinecone catalog specs & guardrails ── */
+    const productTitles = (cart || []).map((c: any) => c.product?.title || c.title || "").filter(Boolean).join(", ");
+    const vectorSearchQuery = `${productTitles}. Customer requirements: ${message || ""}`;
+    const retrievedCatalogSpecs = await retrieveCatalogSpecs(vectorSearchQuery, 3);
+
+    /* ── Context prompt: inject user identity, cart manifest, pinecone specs, and constraints ── */
     const userContextPrompt = `
       Customer Identity: ${userName}
       Sourcing Email Context Target: ${toEmail}
@@ -110,6 +116,9 @@ export async function POST(req: Request) {
       
       CART REQUISITION MANIFEST:
       ${JSON.stringify(cart, null, 2)}
+      
+      PINECONE RETRIEVED CATALOG SPECIFICATIONS & GUARDRAILS:
+      ${retrievedCatalogSpecs || "Standard catalog parameters apply."}
       
       CUSTOMER ARTWORK/TIMELINE CONSTRAINTS:
       "${message || "No specific instructions declared."}"
