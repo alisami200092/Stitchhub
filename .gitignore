@@ -1,77 +1,90 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ─────────────────────────────────────────────────────────────
+# Stitch Hub — Master .gitignore
+# Comprehensive rules for Next.js 16, TypeScript, Bun/Node,
+# Supabase, Drizzle ORM, IDEs, and OS artifacts.
+# ─────────────────────────────────────────────────────────────
 
-# Dependencies
-/node_modules
-/.pnp
-.pnp.*
+# --- Dependencies & Package Managers ---
+node_modules/
+.pnp
+.pnp.js
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
-# Bun specific
-bun.lockb
 .bun/
+bun.lockb.tmp*
 
-# Testing
-/coverage
-
-# Next.js build output
-/.next/
-/out/
-/build
-
-# Debugging logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-lerna-debug.log*
-*.log
-
-# Environment variables & secrets
+# --- Environment Variables & Secrets (CRITICAL) ---
 .env
-.env.local
+.env*.local
 .env.development.local
 .env.test.local
 .env.production.local
-.env*.local
-!.env.example
+*.env
+!*.env.example
 
-# OS files
+# --- Next.js Build Outputs & Cache ---
+.next/
+out/
+build/
+dist/
+.turbo/
+next-env.d.ts.bak
+
+# --- TypeScript Build Cache ---
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Testing & Coverage ---
+coverage/
+.nyc_output/
+*.lcov
+
+# --- Logs & Runtime Artifacts ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- Local Databases, Dumps & Drizzle Caches ---
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+.drizzle/backup/
+
+# --- Operating System Junk ---
 .DS_Store
 .DS_Store?
 ._*
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+$RECYCLE.BIN/
 
-# IDEs and Editors
+# --- IDEs & Code Editors ---
 .idea/
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+.vscode/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.swo
+*.swp
+.zed/
+.fleet/
 
-# Vercel
-.vercel
-
-# OpenCode Tooling
-/.opencode/
-
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
-
-# Databases & local caching
-*.db
-*.db-journal
-*.sqlite
-.drizzle/
+# --- AI Agents & Workspace Tooling ---
+.opencode/
+.gemini/
+.agents/scratch/
+.cursor/
+*.tmp
+*.temp
+temp_*

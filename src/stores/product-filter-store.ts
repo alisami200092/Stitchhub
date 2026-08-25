@@ -5,13 +5,14 @@
 import { create } from "zustand";
 import type { Product } from "../types";
 
-/** The category tabs displayed in the product grid. */
+/** The category options available in the product directory dropdown. */
 export const CATEGORIES = [
   "All",
-  "Apparel (Hoodie, Polo)",
-  "Drinkware (Tumblers)",
-  "Gear (Organizer Pouches)",
-  "Office (Acoustic Panels)"
+  "Apparel",
+  "Drinkware",
+  "Gear",
+  "Office",
+  "Travel"
 ];
 
 /**
@@ -66,8 +67,19 @@ export function getFilteredProducts(
 ): Product[] {
   return catalog
     .filter((product) => {
-      const matchCat = selectedCategory === "All" || product.cat === selectedCategory;
-      const matchSearch = product.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const selected = (selectedCategory || "").toLowerCase().trim();
+      const productCat = (product.cat || "").toLowerCase().trim();
+      
+      const matchCat =
+        selected === "all" ||
+        productCat === selected ||
+        productCat.startsWith(selected) ||
+        productCat.includes(selected);
+
+      const matchSearch = (product.title || "")
+        .toLowerCase()
+        .includes((searchQuery || "").toLowerCase());
+
       return matchCat && matchSearch;
     })
     .sort((a, b) => {
