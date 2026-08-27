@@ -30,7 +30,7 @@ export default function ProductFilters({
   categories,
 }: ProductFiltersProps) {
   return (
-    <div className="flex flex-wrap items-center justify-start gap-4 border-b border-zinc-900 pb-8 mb-12 animate-scaleIn">
+    <div className="flex flex-wrap items-center justify-start gap-3 sm:gap-4 border-b border-zinc-900 pb-6 sm:pb-8 mb-8 sm:mb-12 animate-scaleIn">
       {/* ── Search Input with clear button ── */}
       <div className="relative w-full sm:w-72">
         <input
@@ -38,7 +38,7 @@ export default function ProductFilters({
           placeholder="Search catalog..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-zinc-900 border border-zinc-800 rounded-full px-5 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:border-[#d4af37] focus:outline-none transition-colors"
+          className="w-full bg-zinc-900 border border-zinc-800 rounded-full px-4 sm:px-5 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:border-[#d4af37] focus:outline-none transition-colors"
         />
         {/* Clear icon appears only when query is non-empty */}
         {searchQuery && (
@@ -53,43 +53,46 @@ export default function ProductFilters({
         )}
       </div>
 
-      {/* ── Category Dropdown ── */}
-      <div className="relative w-full sm:w-auto">
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="w-full sm:w-auto appearance-none bg-zinc-900 border border-zinc-800 rounded-full px-5 py-2.5 pr-10 text-sm text-zinc-200 focus:border-[#d4af37] focus:outline-none cursor-pointer hover:border-zinc-700 transition-colors"
-        >
-          {categories.map((cat) => (
-            <option key={cat} value={cat} className="bg-zinc-900 text-zinc-200">
-              {cat.toLowerCase() === "all" ? "All Categories" : (cat.includes(" (") ? cat.split(" (")[0] : cat)}
-            </option>
-          ))}
-        </select>
-        {/* Custom chevron indicator */}
-        <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-zinc-500">
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+      {/* ── Filter Dropdowns (side-by-side on mobile, inline on desktop) ── */}
+      <div className="flex items-center gap-3 w-full sm:w-auto">
+        {/* Category Dropdown */}
+        <div className="relative flex-1 sm:flex-initial sm:w-auto min-w-0">
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="w-full appearance-none bg-zinc-900 border border-zinc-800 rounded-full px-3.5 sm:px-5 py-2.5 pr-8 sm:pr-10 text-xs sm:text-sm text-zinc-200 focus:border-[#d4af37] focus:outline-none cursor-pointer hover:border-zinc-700 transition-colors truncate"
+          >
+            {categories.map((cat) => (
+              <option key={cat} value={cat} className="bg-zinc-900 text-zinc-200">
+                {cat.toLowerCase() === "all" ? "All Categories" : (cat.includes(" (") ? cat.split(" (")[0] : cat)}
+              </option>
+            ))}
+          </select>
+          {/* Custom chevron indicator */}
+          <div className="pointer-events-none absolute inset-y-0 right-3 sm:right-4 flex items-center text-zinc-500">
+            <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
-      </div>
 
-      {/* ── Sort Dropdown ── */}
-      <div className="relative w-full sm:w-auto">
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="w-full sm:w-auto appearance-none bg-zinc-900 border border-zinc-800 rounded-full px-5 py-2.5 pr-10 text-sm text-zinc-200 focus:border-[#d4af37] focus:outline-none cursor-pointer hover:border-zinc-700 transition-colors"
-        >
-          <option value="price-asc" className="bg-zinc-900 text-zinc-200">Price: Low to High</option>
-          <option value="price-desc" className="bg-zinc-900 text-zinc-200">Price: High to Low</option>
-          <option value="name-asc" className="bg-zinc-900 text-zinc-200">Name: A to Z</option>
-        </select>
-        {/* Custom chevron indicator */}
-        <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-zinc-500">
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+        {/* Sort Dropdown */}
+        <div className="relative flex-1 sm:flex-initial sm:w-auto min-w-0">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="w-full appearance-none bg-zinc-900 border border-zinc-800 rounded-full px-3.5 sm:px-5 py-2.5 pr-8 sm:pr-10 text-xs sm:text-sm text-zinc-200 focus:border-[#d4af37] focus:outline-none cursor-pointer hover:border-zinc-700 transition-colors truncate"
+          >
+            <option value="price-asc" className="bg-zinc-900 text-zinc-200">Price: Low</option>
+            <option value="price-desc" className="bg-zinc-900 text-zinc-200">Price: High</option>
+            <option value="name-asc" className="bg-zinc-900 text-zinc-200">Name: A–Z</option>
+          </select>
+          {/* Custom chevron indicator */}
+          <div className="pointer-events-none absolute inset-y-0 right-3 sm:right-4 flex items-center text-zinc-500">
+            <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
       </div>
     </div>

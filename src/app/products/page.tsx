@@ -10,6 +10,19 @@ import ProductCard from "../../components/products/ProductCard";
 import { useProducts } from "../../hooks/useProducts";
 import { getBaseTitle, getProductColor, getColorOrder } from "../../utils/colors";
 
+const baseTitlePriority: Record<string, number> = {
+  "Gildan 18500 Hoodie": 1,
+  "Minimalist Corporate Polo": 2,
+  "Insulated Matte Tumbler": 3,
+  "EDC Tech Organizer Pouch": 4,
+  "Framed Acoustic Art Panel": 5,
+  "Cordura Ballistic Tech Briefcase": 6,
+  "Natural Merino Wool Desk Mat": 7,
+  "Rugged Waxed Canvas Weekend Duffel": 8,
+  "Minimalist MagSafe Matte Aluminum Wallet": 9,
+  "Full-Grain Leather Hardware Loop Keychain": 10,
+};
+
 /** Products listing page — renders filtered grid or empty-state fallback */
 export default function ProductsPage() {
   const {
@@ -25,92 +38,29 @@ export default function ProductsPage() {
     loading,
   } = useProducts();
 
-  // Group products by base title
-  const groupsMap: Record<string, typeof filteredProducts> = {};
-  for (const product of filteredProducts) {
-    const base = getBaseTitle(product.title);
-    if (!groupsMap[base]) {
-      groupsMap[base] = [];
-    }
-    groupsMap[base].push(product);
-  }
-
-  const baseTitlePriority: Record<string, number> = {
-    "Gildan 18500 Hoodie": 1,
-    "Minimalist Corporate Polo": 2,
-    "Insulated Matte Tumbler": 3,
-    "EDC Tech Organizer Pouch": 4,
-    "Framed Acoustic Art Panel": 5,
-    "Cordura Ballistic Tech Briefcase": 6,
-    "Natural Merino Wool Desk Mat": 7,
-    "Rugged Waxed Canvas Weekend Duffel": 8,
-    "Minimalist MagSafe Matte Aluminum Wallet": 9,
-    "Full-Grain Leather Hardware Loop Keychain": 10,
-  };
-
-  const allBaseTitlesInFiltered = Object.keys(groupsMap);
-  const activeBaseTitles = allBaseTitlesInFiltered.sort((a, b) => {
-    const prioA = baseTitlePriority[a] ?? 999;
-    const prioB = baseTitlePriority[b] ?? 999;
-    if (prioA !== prioB) return prioA - prioB;
-    return a.localeCompare(b);
-  });
-
-  const columnsData = activeBaseTitles.map((base) => {
-    return groupsMap[base].sort((a, b) => {
-      return getColorOrder(getProductColor(a)) - getColorOrder(getProductColor(b));
-    });
-  });
-
-  // Pad the columnsData with empty columns on the right to keep card sizes uniform (1/5 of grid)
-  while (columnsData.length < 5) {
-    columnsData.push([]);
-  }
-
-  const maxRows = columnsData.reduce((max, col) => Math.max(max, col.length), 0);
-
-  // Build the flat array in column-major order to align vertically in the CSS grid
-  const gridItems: (typeof filteredProducts[0] | null)[] = [];
-  for (let r = 0; r < maxRows; r++) {
-    for (let c = 0; c < columnsData.length; c++) {
-      const col = columnsData[c];
-      if (r < col.length) {
-        gridItems.push(col[r]);
-      } else {
-        gridItems.push(null);
-      }
-    }
-  }
-
-  const isAllTab = selectedCategory.toLowerCase() === "all";
-
-  // Build the flat array to render depending on the current selected tab
-  let displayItems: (typeof filteredProducts[0] | null)[] = [];
-  if (isAllTab) {
-    displayItems = gridItems;
-  } else {
-    displayItems = [...filteredProducts].sort((a, b) => {
+  // Sort products prioritizing flagship base items and color ordering unless sorted by user
+  const displayProducts = [...filteredProducts].sort((a, b) => {
+    if (sortBy === "price-asc" || !sortBy) {
       const prioA = baseTitlePriority[getBaseTitle(a.title)] ?? 999;
       const prioB = baseTitlePriority[getBaseTitle(b.title)] ?? 999;
       if (prioA !== prioB) return prioA - prioB;
       return getColorOrder(getProductColor(a)) - getColorOrder(getProductColor(b));
-    });
-  }
-
-  const gridClass = "lg:grid-cols-5";
+    }
+    return 0; // Already sorted by useProducts for price-desc, name-asc, etc.
+  });
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-[#d4af37] selection:text-black">
 
       {/* ── Main container: title + filters + results ── */}
-      <section className="py-16 px-6 md:px-12 max-w-7xl mx-auto">
+      <section className="py-10 sm:py-16 px-4 sm:px-6 md:px-12 max-w-7xl mx-auto">
 
         {/* Page header with gold-accent title and descriptive sub-text */}
-        <div className="mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight font-display text-white">
+        <div className="mb-8 sm:mb-12">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight font-display text-white">
             B2B Sourcing <span className="text-[#d4af37]">Directory</span>
           </h1>
-          <p className="text-zinc-400 mt-2 text-sm md:text-base max-w-xl">
+          <p className="text-zinc-400 mt-2 text-xs sm:text-sm md:text-base max-w-xl">
             Browse customizable products with volume pricing calculated in real time.
           </p>
         </div>
@@ -132,7 +82,7 @@ export default function ProductsPage() {
             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#d4af37] mb-3"></div>
             <span className="text-xs font-mono uppercase tracking-wider text-zinc-500">Loading products...</span>
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : displayProducts.length === 0 ? (
           /* ── No results — search-icon placeholder with clear-filters action ── */
           <div className="py-24 text-center">
             <svg
@@ -157,20 +107,14 @@ export default function ProductsPage() {
             </button>
           </div>
         ) : (
-          /* ── Product grid ── */
-          <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${gridClass} gap-8`}>
-            {displayItems.map((item, idx) => {
-              if (item === null) {
-                // Invisible placeholder to keep columns aligned on desktop, hidden on collapsed mobile/tablet grid
-                return <div key={`placeholder-${idx}`} className="hidden lg:block aspect-4/5" />;
-              }
-              return (
-                <ProductCard
-                  key={item.id}
-                  product={item}
-                />
-              );
-            })}
+          /* ── Product grid: 2 cols on mobile for maximum visibility, 3 on tablet, 4 on desktop ── */
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
+            {displayProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+              />
+            ))}
           </div>
         )}
       </section>
@@ -180,3 +124,4 @@ export default function ProductsPage() {
     </main>
   );
 }
+
