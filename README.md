@@ -1,164 +1,96 @@
 # StitchHub
 
-> **A modern B2B custom merchandise & apparel sourcing platform powered by an AI procurement engine.**
+> **A modern B2B custom merchandise & apparel sourcing platform powered by an agentic AI procurement engine.**
 
-StitchHub streamlines the traditional, messy back-and-forth of corporate merchandise sourcing. Instead of waiting days for custom price quotes, timeline validations, and supplier checks, buyers can configure bulk orders, get real-time tiered pricing and AI-assisted quotes, pay deposits seamlessly, and track their production run from one place.
+Corporate merchandise sourcing has traditionally been a slow, manual grind of back-and-forth emails, vague pricing matrices, untracked revisions, and disconnected supplier communication. 
 
----
-
-## 🌟 What is StitchHub?
-
-StitchHub brings three key players together on one unified platform:
-
-1. **Clients & Corporate Buyers**
-   - Browse a curated catalog of customizable apparel, drinkware, gear, and office products.
-   - Build custom cart orders with MOQ (Minimum Order Quantity) enforcement.
-   - Submit an RFQ (Request for Quote) and chat directly with an AI Sourcing Agent that checks timelines, fabric rules, and tiered volume discounts.
-   - Pay a 30% production deposit online via Polar checkout once quotes are approved.
-   - Track order status, download invoices, and manage past sourcing runs.
-
-2. **Operations & Admins**
-   - Central command center to oversee all customer orders, production stages, and inventory levels.
-   - Review AI quotes flagged for manual review (e.g., custom fabric requests, tight deadlines, low stock).
-   - Seamless "human-in-the-loop" takeover of customer chat threads.
-   - Review and accept supplier bids, sync costs, and manage catalog items.
-
-3. **Suppliers & Manufacturers**
-   - Dedicated supplier portal to view active procurement RFQs.
-   - Submit wholesale bids with unit costs and delivery timelines.
-   - Direct messaging channel with StitchHub operations for logistical coordination.
+**StitchHub** transforms this process into a seamless operational command center. From configuring bulk garment orders and calculating tiered volume pricing in real time, to AI-driven quote drafting, automated manufacturing guardrails, and instant deposit payments, StitchHub handles the heavy lifting so creative directors and brand teams can focus on their vision.
 
 ---
 
-## 🛠️ Tech Stack
+## 🌟 The Experience
 
-- **Frontend**: [Next.js 16](https://nextjs.org/) (App Router, Turbopack) + [React 19](https://react.dev/)
-- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) with a sleek dark-luxury theme (`#d4af37` gold accents)
-- **Database & ORM**: PostgreSQL on [Supabase](https://supabase.com/) + [Drizzle ORM](https://orm.drizzle.team/)
-- **Authentication**: Supabase Auth (Email/Password + TOTP MFA sessions)
-- **State Management**: [Zustand](https://github.com/pmndrs/zustand) (cart, filters, UI) + [TanStack React Query](https://tanstack.com/query) (server cache)
-- **AI & Reasoning**: Local [Ollama](https://ollama.ai/) (`stitchhub-v5`) with cloud [Google Gemini](https://ai.google.dev/) fallback
-- **Vector Search**: [Pinecone](https://www.pinecone.io/) for catalog spec retrieval
-- **Payments**: [Polar.sh](https://polar.sh/) (30% production deposit checkout + webhooks)
-- **Transactional Emails**: [Brevo](https://www.brevo.com/)
+StitchHub unites three key user journeys into one fluid application:
+
+### 1. 🛍️ Corporate Buyers & Brand Teams
+- **Curated B2B Catalog**: Explore customizable heavyweight hoodies, performance polos, double-wall tumblers, tech pouches, and office acoustics with live Minimum Order Quantity (MOQ) rules.
+- **AI Sourcing Assistant**: Submit an order requisition and converse with an AI agent that understands customization techniques, validates timelines, and computes tiered volume pricing instantly.
+- **Frictionless Deposits**: Approve quotes and pay the 30% production deposit directly via Polar checkout.
+- **Partner Dashboard**: Track order states, review invoices, and manage past sourcing runs.
+
+### 2. ⚡ Operations & Admin Command Center
+- **Order Oversight**: A single dashboard to monitor active production pipelines, invoice statuses, and escalations.
+- **Human-in-the-Loop Takeover**: Intercept and directly take over any AI client conversation thread at any time.
+- **Review & Approval Queue**: Manually verify high-stakes or custom-tailored quotes before they unlock for customer payment.
+- **Catalog & Inventory Management**: Live stock tracking, reorder thresholds, and dynamic product CRUD with image uploads.
+
+### 3. 🏭 Suppliers & Mills
+- **Procurement Portal**: Access active Request for Quotes (RFQs) generated from approved customer orders.
+- **Bidding Engine**: Submit competitive wholesale bids with unit pricing and estimated lead times.
+- **Direct Logistics Chat**: Real-time messaging with StitchHub operations to resolve fabric, colorway, and shipping specs.
 
 ---
 
-## 🚀 Quickstart Guide
+## 🧠 The AI Sourcing Engine
 
-### Prerequisites
-- **Node.js 18+** or **Bun** (recommended)
-- A **Supabase** project (Postgres DB + Auth + Storage)
-- (Optional) A local **Ollama** instance running on `localhost:11434` for local AI inference
+The intelligence behind StitchHub is its **Business Logic Interceptor**:
+- **Prose + Deterministic Business Truth**: While the AI agent drafts natural, conversational responses, strict code-level guardrails govern manufacturing truth.
+- **Production Guardrails**: Automatically enforces 28-day timeline minimums, validates material compatibility (e.g. laser engraving vs. screen print), and checks raw warehouse inventory.
+- **Graceful Escalation Protocol**: Requests that breach manufacturing limits or ask for complex custom cut-and-sew work are smoothly paused and flagged for human operations review without breaking the client thread.
+- **Hybrid AI Runtime**: Prioritizes a local **Ollama** model (`stitchhub-v5`) with an automatic, resilient cloud fallback to **Google Gemini**.
 
-### 1. Clone & Install Dependencies
+---
+
+## 💻 Technical Architecture & Stack
+
+| Layer | Technology | Key Highlights |
+|---|---|---|
+| **Framework** | [Next.js 16](https://nextjs.org/) (App Router, Turbopack) | CSR-first interactive pages, Node.js API route handlers |
+| **UI & Styling** | [React 19](https://react.dev/) + [Tailwind CSS v4](https://tailwindcss.com/) | Dark-luxury palette (`#d4af37` gold accents), glassmorphic surfaces |
+| **Database & ORM** | PostgreSQL ([Supabase](https://supabase.com/)) + [Drizzle ORM](https://orm.drizzle.team/) | Drizzle queries with transaction pooling, schema migrations |
+| **Auth & Security** | Supabase Auth + Edge Proxy | Email allowlist authorization, TOTP MFA, defense-in-depth API guards |
+| **State & Cache** | [Zustand 5](https://github.com/pmndrs/zustand) + [TanStack Query 5](https://tanstack.com/query) | LocalStorage cart persistence, 60s server cache with smart invalidation |
+| **AI & Search** | Local Ollama + Gemini + [Pinecone](https://www.pinecone.io/) | Semantic catalog matching, multi-turn chat threads, GGUF local model |
+| **Payments** | [Polar.sh](https://polar.sh/) | Sandbox deposit checkouts with cryptographically verified webhooks |
+| **Email Alerts** | [Brevo](https://www.brevo.com/) | Transactional customer notifications and quote alerts |
+
+---
+
+## 🚀 Getting Started
+
+Want to run StitchHub on your machine? Check out the complete step-by-step setup guide:
+
+👉 **[Read the Quickstart Guide](docs/QUICKSTART.md)**
 
 ```bash
+# Quick install & start
 git clone https://github.com/1ewig/Stitchhub.git
 cd Stitchhub
-
-# Using Bun (recommended)
-bun install
-
-# Or using npm
-npm install
-```
-
-### 2. Configure Environment Variables
-
-Create a `.env.local` file by copying `.env.example`:
-
-```bash
+bun install          # or npm install
 cp .env.example .env.local
-```
-
-Fill in your required credentials:
-```env
-# Database & Supabase
-DATABASE_URL="postgres://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT].supabase.co:5432/postgres"
-NEXT_PUBLIC_SUPABASE_URL="https://[YOUR-PROJECT].supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
-
-# AI Inference (Gemini fallback)
-GEMINI_API_KEY="your-gemini-api-key"
-GEMINI_MODEL="gemini-1.5-flash"
-
-# Payments (Polar Sandbox)
-POLAR_ACCESS_TOKEN="polar_at_..."
-POLAR_WEBHOOK_SECRET="your-polar-webhook-secret"
-POLAR_PRODUCT_ID="your-polar-product-id"
-
-# Transactional Email (Brevo)
-BREVO_API_KEY="xkeysib-..."
-
-# Vector Retrieval (Pinecone - optional)
-PINECONE_API_KEY="your-pinecone-api-key"
-PINECONE_INDEX_NAME="stitchhub-catalog"
-```
-
-### 3. Setup Database & Seed Data
-
-Run Drizzle migrations and seed initial products and materials inventory:
-
-```bash
-# Run migrations
 bun run db:migrate
-
-# Seed catalog products
-bun src/db/seed.ts
-
-# Seed raw materials inventory
-bun src/db/seed_inventory.ts
-```
-
-### 4. Start the Dev Server
-
-```bash
 bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
 ---
 
-## 📂 Project Structure
+## 📚 Documentation
 
-```
-src/
-├── app/                    # Next.js App Router routes & API endpoints
-│   ├── (storefront)/       # Landing page, catalog (/products), detail (/products/[id]), checkout
-│   ├── admin/              # Operations command center (orders, approvals, inventory, products)
-│   ├── supplier/           # Supplier portal (active RFQs, bids, messages)
-│   ├── profile/            # Buyer dashboard (inbox, history, invoices, settings)
-│   └── api/                # Secure backend route handlers (AI agent, chat, orders, webhook)
-├── components/             # Reusable UI atoms, layouts, cards, and modal components
-├── data/                   # Default catalog and specs
-├── db/                     # Drizzle schema, DB client, migrations, and seed scripts
-├── hooks/                  # Client-side custom hooks & React Query wrappers
-├── lib/                    # Payment utils, vector retrieval helpers
-├── stores/                 # Zustand stores (cart, filters, supplier state)
-├── types/                  # Shared TypeScript interfaces & types
-└── utils/                  # Auth checks, pricing rules, inventory mapping, colors
-```
+Detailed documentation and architectural references are available in the [`docs/`](docs/) directory:
 
----
-
-## 🤖 The AI Sourcing Engine
-
-The core differentiator of StitchHub is the **Business Logic Interceptor**:
-- The AI agent understands conversational client requests while remaining strictly bounded by manufacturing reality.
-- **Automated Guardrails**: Enforces 28-day production minimums, validates product-specific customization techniques (e.g., laser engraving vs. screen printing), checks warehouse inventory stock, and calculates tiered volume pricing deterministically.
-- **Graceful Human Escalation**: If an order violates constraints or asks for custom modifications, the system flags it for admin review without breaking the customer conversation.
+- 📖 **[Quickstart Guide](docs/QUICKSTART.md)** — Step-by-step local setup, environment variables, and database seeding.
+- 🏛️ **[System Architecture & Context](docs/SUMMARY.md)** — Complete deep-dive into domain models, data flows, authz rules, and state invariants.
+- 💳 **[Polar Payment Integration](docs/polar-integration.md)** — Details on deposit checkouts, webhook verification, and payment confirmation.
 
 ---
 
 ## 🤝 Contributing
 
-Contributions, feedback, and suggestions are always welcome!
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m "feat: add amazing feature"`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+Contributions, issues, and feature suggestions are welcome!
+1. Fork the repository
+2. Create your branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -m "feat: add my feature"`
+4. Push to branch: `git push origin feature/my-feature`
 5. Open a Pull Request
 
 ---
@@ -166,4 +98,3 @@ Contributions, feedback, and suggestions are always welcome!
 ## 📄 License
 
 Proprietary — built with care by the StitchHub team.
-
