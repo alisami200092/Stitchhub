@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@getbrevo/brevo": "^5.0.4",
+    "@gradio/client": "^2.5.1",
     "@polar-sh/nextjs": "^0.9.6",
     "@polar-sh/sdk": "^0.48.1",
     "@supabase/ssr": "^0.10.3",

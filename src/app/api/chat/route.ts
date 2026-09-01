@@ -5,6 +5,8 @@ import { emailLogs, invoices, materialsInventory, supplierQuotes, supplierMessag
 import { eq, and } from "drizzle-orm";
 import { calculateTieredPricing } from "@/utils/pricing";
 import { mapProductToInventoryItem } from "@/utils/inventory";
+import { queryCustomLLM } from "@/lib/hf-agent";
+import { AGENT_SYSTEM_PROMPT } from "@/utils/prompts";
 
 export async function POST(req: Request) {
   // 1. Auth Guard
@@ -52,23 +54,16 @@ export async function POST(req: Request) {
     if (isOverridden) {
       replyContent = "[Human Agent Takeover] An operations manager has taken over this thread and will reply shortly.";
     } else {
-      // 2. Call local Ollama chat model
-      const response = await fetch("http://localhost:11434/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "stitchhub_v5", // Fine-tuned GGUF
-          messages: messages,
-          stream: false,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Local Ollama chat response generation failed.");
-      }
-
-      const data = await response.json();
-      replyContent = data.message.content;
+      // 2. Call Custom Model (Cloud Hugging Face Space with Fallbacks)
+      const lastUserMsg = messages[messages.length - 1]?.content || "";
+      const conversationContext = messages.map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join("\n");
+      
+      replyContent = await queryCustomLLM(
+        `CONVERSATION HISTORY:\n${conversationContext}\n\nLATEST USER QUERY:\n${lastUserMsg}`,
+        AGENT_SYSTEM_PROMPT,
+        0.7,
+        512
+      );
     }
 
     let finalStatus = currentStatus;

@@ -2,6 +2,7 @@ import { catalog } from "@/data/products";
 
 const PINECONE_API_KEY = process.env.PINECONE_API_KEY || "";
 const INDEX_NAME = process.env.PINECONE_INDEX_NAME || "stitchhub-catalog";
+const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
 
 export interface RetrievedSpec {
   name: string;
@@ -10,99 +11,131 @@ export interface RetrievedSpec {
 }
 
 /**
- * Generates vector embeddings for a query using local Ollama (all-minilm, 384 dimensions)
+ * 1. Generates vector embeddings for a query using local Ollama (all-minilm, 384 dimensions)
  */
 async function getOllamaEmbedding(text: string): Promise<number[] | null> {
   try {
-    const res = await fetch("http://localhost:11434/api/embeddings", {
+    const res = await fetch(`${OLLAMA_HOST}/api/embeddings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "all-minilm",
         prompt: text,
       }),
-      signal: AbortSignal.timeout(2500),
+      signal: AbortSignal.timeout(2000),
     });
 
     if (!res.ok) return null;
     const data = await res.json();
     return data.embedding || null;
   } catch (err) {
-    console.warn("Local Ollama embedding failed, falling back to keyword lookup:", err);
     return null;
   }
 }
 
 /**
- * Retrieves vector specifications and operational guardrails from Pinecone index.
- * Falls back to local catalog if Pinecone or embedding model is unreachable.
+ * 2. Generates vector embeddings using Google Gemini fallback if Ollama is not on localhost
+ */
+async function getGeminiEmbedding(text: string): Promise<number[] | null> {
+  if (!process.env.GEMINI_API_KEY) return null;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "models/text-embedding-004",
+          content: { parts: [{ text }] },
+        }),
+        signal: AbortSignal.timeout(3000),
+      }
+    );
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.embedding?.values || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Retrieves vector specifications and operational guardrails from Pinecone index (1st Priority).
+ * Falls back cleanly to local structured catalog if Pinecone or embedding is unreachable.
  */
 export async function retrieveCatalogSpecs(query: string, topK: number = 3): Promise<string> {
   if (!query || query.trim().length === 0) {
     return "";
   }
 
-  // 1. Try Vector Retrieval via Pinecone
-  try {
-    const embedding = await getOllamaEmbedding(query);
-    
-    if (embedding && PINECONE_API_KEY) {
-      // Query Pinecone Index via Data Plane REST endpoint
-      const describeRes = await fetch(`https://api.pinecone.io/indexes/${INDEX_NAME}`, {
-        method: "GET",
-        headers: {
-          "Api-Key": PINECONE_API_KEY,
-          "X-Pinecone-API-Version": "2024-07",
-        },
-        signal: AbortSignal.timeout(3000),
-      });
+  // ── PRIORITY 1: PINECONE VECTOR DATABASE ──
+  if (PINECONE_API_KEY) {
+    try {
+      console.log("🌲 [Vector DB] Generating embedding for Pinecone search query...");
+      // Try local Ollama embedding first, fallback to Gemini embedding
+      const embedding = (await getOllamaEmbedding(query)) || (await getGeminiEmbedding(query));
 
-      if (describeRes.ok) {
-        const describeData = await describeRes.json();
-        const host = describeData.host;
+      if (embedding) {
+        // Query Pinecone Index via Data Plane REST endpoint
+        const describeRes = await fetch(`https://api.pinecone.io/indexes/${INDEX_NAME}`, {
+          method: "GET",
+          headers: {
+            "Api-Key": PINECONE_API_KEY,
+            "X-Pinecone-API-Version": "2024-07",
+          },
+          signal: AbortSignal.timeout(3000),
+        });
 
-        if (host) {
-          const queryRes = await fetch(`https://${host}/query`, {
-            method: "POST",
-            headers: {
-              "Api-Key": PINECONE_API_KEY,
-              "Content-Type": "application/json",
-              "X-Pinecone-API-Version": "2024-07",
-            },
-            body: JSON.stringify({
-              vector: embedding,
-              topK: topK,
-              includeMetadata: true,
-            }),
-            signal: AbortSignal.timeout(3000),
-          });
+        if (describeRes.ok) {
+          const describeData = await describeRes.json();
+          const host = describeData.host;
 
-          if (queryRes.ok) {
-            const queryData = await queryRes.json();
-            const matches = queryData.matches || [];
-            
-            if (matches.length > 0) {
-              const vectorResults = matches.map((m: any) => {
-                const meta = m.metadata || {};
-                const text = meta.text || meta.page_content || meta.specs || `Product: ${meta.product_name || m.id}`;
-                return `- ${text}`;
-              });
-              return vectorResults.join("\n\n");
+          if (host) {
+            const queryRes = await fetch(`https://${host}/query`, {
+              method: "POST",
+              headers: {
+                "Api-Key": PINECONE_API_KEY,
+                "Content-Type": "application/json",
+                "X-Pinecone-API-Version": "2024-07",
+              },
+              body: JSON.stringify({
+                vector: embedding,
+                topK: topK,
+                includeMetadata: true,
+              }),
+              signal: AbortSignal.timeout(4000),
+            });
+
+            if (queryRes.ok) {
+              const queryData = await queryRes.json();
+              const matches = queryData.matches || [];
+
+              if (matches.length > 0) {
+                console.log(`🌲 [Vector DB] Successfully retrieved ${matches.length} matches from Pinecone!`);
+                const vectorResults = matches.map((m: any) => {
+                  const meta = m.metadata || {};
+                  const text = meta.text || meta.page_content || meta.specs || `Product: ${meta.product_name || m.id}`;
+                  return `- ${text}`;
+                });
+                return vectorResults.join("\n\n");
+              }
             }
           }
         }
       }
+    } catch (pineconeErr) {
+      console.warn("⚠️ [Vector DB] Pinecone query error, gracefully falling back to local catalog:", pineconeErr);
     }
-  } catch (pineconeErr) {
-    console.warn("Pinecone query error, falling back to structured catalog matching:", pineconeErr);
   }
 
-  // 2. Structured Fallback: Search local catalog in memory with smart ranking
+  // ── PRIORITY 2 / FALLBACK: In-Memory Structured Catalog Search ──
+  console.log("📚 [Catalog DB] Using high-accuracy local structured catalog matching...");
   const lowerQuery = query.toLowerCase();
   const scored = catalog.map((p) => {
     let score = 0;
     const titleLower = p.title.toLowerCase();
-    
+
     // Direct exact or substring match in title (Highest weight)
     if (lowerQuery.includes(titleLower) || titleLower.includes(lowerQuery)) {
       score += 100;
