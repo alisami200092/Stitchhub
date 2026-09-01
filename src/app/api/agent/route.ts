@@ -104,10 +104,11 @@ export async function POST(req: Request) {
       });
     }
 
-    /* ── Vector Context: Retrieve dynamic Pinecone catalog specs & guardrails ── */
-    const productTitles = (cart || []).map((c: any) => c.product?.title || c.title || "").filter(Boolean).join(", ");
+    /* ── Vector Context: Retrieve dynamic Pinecone catalog specs for exact cart items ── */
+    const productTitlesList: string[] = (cart || []).map((c: any) => c.product?.title || c.title || "").filter(Boolean);
+    const productTitles = productTitlesList.join(", ") || "Custom Apparel";
     const vectorSearchQuery = `${productTitles}. Customer requirements: ${message || ""}`;
-    const retrievedCatalogSpecs = await retrieveCatalogSpecs(vectorSearchQuery, 3);
+    const retrievedCatalogSpecs = await retrieveCatalogSpecs(vectorSearchQuery, Math.max(1, productTitlesList.length), productTitlesList);
 
     /* ── Context prompt: inject user identity, cart manifest, pinecone specs, and constraints ── */
     const userContextPrompt = `
@@ -123,6 +124,10 @@ export async function POST(req: Request) {
       
       CUSTOMER ARTWORK/TIMELINE CONSTRAINTS:
       "${message || "No specific instructions declared."}"
+
+      STRICT ATTENTION INSTRUCTION:
+      You are evaluating an order exclusively for the item(s) listed in the CART REQUISITION MANIFEST (${productTitles}).
+      Evaluate the decoration feasibility, MOQ, and timeline strictly for this item (${productTitles}). Do NOT mention, substitute, or hallucinate unrelated catalog items (such as keychains, tumblers, or wallets).
     `;
 
     /* ── Custom Model Inference: queries Local Ollama / HF Space / Gemini ── */

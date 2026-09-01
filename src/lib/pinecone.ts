@@ -61,10 +61,21 @@ async function getGeminiEmbedding(text: string): Promise<number[] | null> {
 }
 
 /**
- * Retrieves vector specifications and operational guardrails from Pinecone index (1st Priority).
- * Falls back cleanly to local structured catalog if Pinecone or embedding is unreachable.
+ * Formats a catalog product into a structured specification block.
  */
-export async function retrieveCatalogSpecs(query: string, topK: number = 3): Promise<string> {
+function formatProductSpec(p: (typeof catalog)[0]): string {
+  return `- Product: ${p.title}. Category: ${p.cat}. Approved Methods: ${p.customization || "Standard"}. Operational Notes: ${p.description}. MOQ: ${p.moq} units. Standard Production Lead Time: 28 days.`;
+}
+
+/**
+ * Retrieves vector specifications and operational guardrails from Pinecone index (1st Priority).
+ * Strictly limits retrieval to the exact target products in the cart.
+ */
+export async function retrieveCatalogSpecs(
+  query: string,
+  topK: number = 1,
+  targetProducts: string[] = []
+): Promise<string> {
   if (!query || query.trim().length === 0) {
     return "";
   }
@@ -72,12 +83,10 @@ export async function retrieveCatalogSpecs(query: string, topK: number = 3): Pro
   // ── PRIORITY 1: PINECONE VECTOR DATABASE ──
   if (PINECONE_API_KEY) {
     try {
-      console.log("🌲 [Vector DB] Generating embedding for Pinecone search query...");
-      // Try local Ollama embedding first, fallback to Gemini embedding
+      console.log(`🌲 [Vector DB] Querying Pinecone for target items (topK=${topK})...`);
       const embedding = (await getOllamaEmbedding(query)) || (await getGeminiEmbedding(query));
 
       if (embedding) {
-        // Query Pinecone Index via Data Plane REST endpoint
         const describeRes = await fetch(`https://api.pinecone.io/indexes/${INDEX_NAME}`, {
           method: "GET",
           headers: {
@@ -101,7 +110,7 @@ export async function retrieveCatalogSpecs(query: string, topK: number = 3): Pro
               },
               body: JSON.stringify({
                 vector: embedding,
-                topK: topK,
+                topK: Math.max(1, topK),
                 includeMetadata: true,
               }),
               signal: AbortSignal.timeout(4000),
@@ -129,14 +138,31 @@ export async function retrieveCatalogSpecs(query: string, topK: number = 3): Pro
     }
   }
 
-  // ── PRIORITY 2 / FALLBACK: In-Memory Structured Catalog Search ──
-  console.log("📚 [Catalog DB] Using high-accuracy local structured catalog matching...");
+  // ── PRIORITY 2 / FALLBACK: Exact Cart-Targeted In-Memory Matching ──
+  console.log("📚 [Catalog DB] Using strict cart-targeted catalog matching...");
+
+  // If specific target products are declared (from user's cart), ONLY return those products
+  if (targetProducts && targetProducts.length > 0) {
+    const matchedProducts = catalog.filter((p) =>
+      targetProducts.some((t) => {
+        const cleanT = t.toLowerCase().trim();
+        const cleanTitle = p.title.toLowerCase().trim();
+        return cleanTitle.includes(cleanT) || cleanT.includes(cleanTitle);
+      })
+    );
+
+    if (matchedProducts.length > 0) {
+      return matchedProducts.map(formatProductSpec).join("\n\n");
+    }
+  }
+
+  // Fallback: Ranked score matching, strictly capped at topK
   const lowerQuery = query.toLowerCase();
   const scored = catalog.map((p) => {
     let score = 0;
     const titleLower = p.title.toLowerCase();
 
-    // Direct exact or substring match in title (Highest weight)
+    // Exact or substring match in title (Highest weight)
     if (lowerQuery.includes(titleLower) || titleLower.includes(lowerQuery)) {
       score += 100;
     }
@@ -149,24 +175,12 @@ export async function retrieveCatalogSpecs(query: string, topK: number = 3): Pro
       }
     }
 
-    const descWords = (p.description || "").toLowerCase().split(/[\s,().-]+/).filter((w) => w.length > 3);
-    for (const w of descWords) {
-      if (lowerQuery.includes(w)) {
-        score += 2;
-      }
-    }
-
     return { product: p, score };
   });
 
   scored.sort((a, b) => b.score - a.score);
-  const selected = scored.filter((s) => s.score > 0).slice(0, topK);
-  const finalProducts = selected.length > 0 ? selected.map((s) => s.product) : catalog.slice(0, topK);
+  const selected = scored.filter((s) => s.score > 0).slice(0, Math.max(1, topK));
+  const finalProducts = selected.length > 0 ? selected.map((s) => s.product) : [catalog[0]];
 
-  return finalProducts
-    .map(
-      (p) =>
-        `- Product: ${p.title}. Category: ${p.cat}. Approved Methods: ${p.customization || "Standard"}. Operational Notes: ${p.description}. MOQ: ${p.moq} units. Standard Production Lead Time: 28 days.`
-    )
-    .join("\n\n");
+  return finalProducts.map(formatProductSpec).join("\n\n");
 }
