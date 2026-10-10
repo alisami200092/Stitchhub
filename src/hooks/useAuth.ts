@@ -153,8 +153,20 @@ export function useAuth() {
 
     const supabase = createClient();
     try {
+      // Check if running on live Vercel or deployed environment
+      const isVercelLive =
+        typeof window !== "undefined" &&
+        (window.location.hostname.includes("vercel.app") ||
+          window.location.hostname.includes("stitchhub-orcin") ||
+          process.env.NEXT_PUBLIC_VERCEL_ENV === "production");
+
+      // If live on Vercel, use the live production domain; otherwise fallback to local origin or custom site URL
+      const redirectUrl = isVercelLive
+        ? "https://stitchhub-orcin.vercel.app/auth/reset-password"
+        : `${window.location.origin}/auth/reset-password`;
+
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+        redirectTo: redirectUrl,
       });
 
       if (resetError) {
