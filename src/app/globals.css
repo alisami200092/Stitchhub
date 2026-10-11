@@ -227,3 +227,14 @@ button:active, a:active {
   pointer-events: none;
   cursor: not-allowed;
 }
+
+/* Hide number input spinners across Chrome, Safari, Edge, Opera, Firefox */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+.no-spinner {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}

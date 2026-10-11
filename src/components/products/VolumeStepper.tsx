@@ -47,7 +47,7 @@ export default function VolumeStepper({ minQty, currentQty, onChange }: VolumeSt
           -
         </button>
 
-        {/* Direct number input for any arbitrary quantity */}
+        {/* Direct number input for any arbitrary quantity (spinner arrows hidden) */}
         <div className="flex-1 flex items-center justify-center gap-1.5">
           <input
             type="number"
@@ -62,7 +62,7 @@ export default function VolumeStepper({ minQty, currentQty, onChange }: VolumeSt
                 onChange(minQty);
               }
             }}
-            className="w-20 text-center bg-zinc-900/60 border border-zinc-800 rounded-lg py-1 font-display font-bold text-white text-lg focus:outline-none focus:border-[#d4af37] transition-colors"
+            className="w-20 text-center bg-zinc-900/60 border border-zinc-800 rounded-lg py-1 font-display font-bold text-white text-lg focus:outline-none focus:border-[#d4af37] transition-colors no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
           <span className="text-xs text-zinc-500 font-medium select-none">units</span>
         </div>
