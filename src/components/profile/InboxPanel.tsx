@@ -11,6 +11,54 @@ interface InboxPanelProps {
   onSelectLog?: (log: EscalationLog | null) => void;
 }
 
+function cleanMarkdownAsterisks(text: string) {
+  const cleaned = text
+    .replace(/\*{3,}/g, "")
+    .replace(/^#+\s*/gm, "");
+
+  const lines = cleaned.split("\n");
+
+  return (
+    <div className="space-y-1">
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={i} className="h-1.5" />;
+        }
+
+        const cleanNoAsterisks = trimmed.replace(/\*\*/g, "");
+        const isHeader =
+          /^(reviewing request parameters|status|next step|next steps|draft quote breakdown|operational parameters|request evaluation):/i.test(
+            cleanNoAsterisks
+          );
+
+        if (isHeader) {
+          const colonIdx = cleanNoAsterisks.indexOf(":");
+          const label = cleanNoAsterisks.slice(0, colonIdx + 1);
+          const val = cleanNoAsterisks.slice(colonIdx + 1).trim();
+
+          return (
+            <div key={i} className="pt-1.5 pb-0.5">
+              <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-[#d4af37] block">
+                {label}
+              </span>
+              {val && <span className="text-zinc-200 block pl-0.5">{val}</span>}
+            </div>
+          );
+        }
+
+        const cleanLine = cleanNoAsterisks.replace(/\*([^*]+)\*/g, "$1");
+
+        return (
+          <p key={i} className="leading-relaxed">
+            {cleanLine}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 function renderParsedAiResponse(draftText: string, status: string) {
   const rawText = draftText.replace("<action>PAUSE</action>", "").trim();
   let parsedData: Record<string, string> | null = null;
@@ -36,18 +84,18 @@ function renderParsedAiResponse(draftText: string, status: string) {
         </div>
         <div className={`p-4 rounded-lg border ${status === "escalated" ? "bg-red-500/5 border-red-500/20" : "bg-[#090a0f] border-[#d4af37]/25"}`}>
           <span className="text-zinc-500 block uppercase tracking-wider text-[9px] font-bold mb-2 font-mono">Agent Response</span>
-          <p className={`text-xs leading-relaxed whitespace-pre-wrap ${status === "escalated" ? "text-red-200/90 font-mono" : "text-zinc-300"}`}>
-            {parsedData.ai_response || rawText}
-          </p>
+          <div className={`text-xs leading-relaxed ${status === "escalated" ? "text-red-200/90 font-mono" : "text-zinc-300"}`}>
+            {cleanMarkdownAsterisks(parsedData.ai_response || rawText)}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <p className={`text-xs leading-relaxed whitespace-pre-wrap ${status === "escalated" ? "text-red-200/90 font-mono" : "text-zinc-300"}`}>
-      {rawText}
-    </p>
+    <div className={`text-xs leading-relaxed ${status === "escalated" ? "text-red-200/90 font-mono" : "text-zinc-300"}`}>
+      {cleanMarkdownAsterisks(rawText)}
+    </div>
   );
 }
 

@@ -19,8 +19,9 @@ export function useProductDetail(product: Product | null, onClose: () => void) {
   const addToCart = useCartStore((s) => s.addToCart);
   const cart = useCartStore((s) => s.cart);
   const router = useRouter();
+  const isApparel = product?.cat === "Apparel (Hoodie, Polo)";
   const [quantity, setQuantity] = useState(50);
-  const [size, setSize] = useState("M");
+  const [size, setSize] = useState(isApparel ? "M" : "Standard");
   const [customNotes, setCustomNotes] = useState("");
 
   // Check if current product and size combination is already in the cart
@@ -28,9 +29,8 @@ export function useProductDetail(product: Product | null, onClose: () => void) {
     ? cart.some((item) => item.product.title === product.title && item.size === size)
     : false;
 
-  // Clamp input quantity to at least the product's MOQ (default 25)
   const minQty = product?.moq ?? 25;
-  const currentQty = Math.max(quantity, minQty);
+  const currentQty = Math.max(1, quantity);
 
   const currentPrice = product
     ? calculateTieredPricing(product.id, currentQty, product.price).unitPrice
@@ -49,9 +49,6 @@ export function useProductDetail(product: Product | null, onClose: () => void) {
     addToCart(finalProduct, currentQty, size, customNotes, true);
     router.push("/products/checkout");
   };
-
-  const isApparel =
-    product?.cat === "Apparel (Hoodie, Polo)";
 
   return {
     quantity,

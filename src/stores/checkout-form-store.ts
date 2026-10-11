@@ -30,13 +30,12 @@ interface CheckoutFormState {
 export const useCheckoutFormStore = create<CheckoutFormState>()((set) => ({
   toEmail: "stitchhub@sourcing.com",
   subject: "Corporate Merchandise Request",
-  message: `Hi Stitch Hub Team,
+  message: `Hello StitchHub Operations Team,
 
-I would like to initiate a premium sourcing quote for custom merchandise. Please help us evaluate custom garment options, insulated drinkware, and tech organizing pouches.
+We would like to initiate an official corporate merchandise procurement inquiry. Please evaluate custom catalog items adhering to your standard 4-week production schedule and 50-unit MOQ floor.
 
 Best regards,
-[Enter Your Name]
-[Enter Company Name]`,
+Corporate Procurement Sourcing Team`,
   isSubmitting: false,
   isSuccess: false,
 
@@ -48,13 +47,12 @@ Best regards,
   reset: () => set({
     toEmail: "stitchhub@sourcing.com",
     subject: "Corporate Merchandise Request",
-    message: `Hi Stitch Hub Team,
+    message: `Hello StitchHub Operations Team,
 
-I would like to initiate a premium sourcing quote for custom merchandise. Please help us evaluate custom garment options, insulated drinkware, and tech organizing pouches.
+We would like to initiate an official corporate merchandise procurement inquiry. Please evaluate custom catalog items adhering to your standard 4-week production schedule and 50-unit MOQ floor.
 
 Best regards,
-[Enter Your Name]
-[Enter Company Name]`,
+Corporate Procurement Sourcing Team`,
     isSubmitting: false,
     isSuccess: false,
   }),
@@ -69,39 +67,39 @@ Best regards,
 export function generateMessageFromCart(cart: CartItem[]): string {
   if (cart.length > 0) {
     const itemsList = cart
-      .map(
-        (item) =>
-          `- ${item.product.title} (Qty: ${item.quantity} units, Size: ${item.size || "Standard"})`
-      )
-      .join("\n");
+      .map((item) => {
+        const sizeInfo = item.size && item.size !== "Standard" ? `, Size: ${item.size}` : "";
+        const method = item.customNotes?.trim() || item.product.customization || "Standard Catalog Decoration";
+        return `• Product: ${item.product.title}\n  Quantity: ${item.quantity} units${sizeInfo}\n  Approved Customization: ${method}\n  Production Timeline: Standard 5-week lead time (35 days)`;
+      })
+      .join("\n\n");
 
-    const specsList = cart
-      .filter((item) => item.customNotes)
-      .map((item) => `- ${item.product.title}: "${item.customNotes}"`)
-      .join("\n");
+    return `Hello StitchHub Procurement & Operations Team,
 
-    return `Hi Stitch Hub Team,
+We would like to formally request an official B2B wholesale production quote for our corporate merchandise program. Please find our order specifications detailed below:
 
-I would like to initiate a premium sourcing quote for our upcoming corporate brand launch. We are interested in ordering the following custom products:
-
+ORDER REQUISITION MANIFEST:
 ${itemsList}
 
-${
-  specsList ? `Branding Specifications:\n${specsList}\n\n` : ""
-}Please provide details regarding production timelines, bulk volume updates, and sample mockup approvals.
+OPERATIONAL PARAMETERS:
+• Production Standard: Official StitchHub catalog specifications and manufacturing tolerances approved.
+• Artwork: High-fidelity corporate logo placement matching material constraints.
+• Logistics: Standard single-destination bulk freight delivery.
+
+Please evaluate this requisition against factory floor availability, calculate tiered volume costing, and initiate the formal purchase order review.
 
 Best regards,
-[Enter Your Name]
-[Enter Company Name]`;
+Corporate Procurement Sourcing Team`;
   }
 
-  return `Hi Stitch Hub Team,
+  return `Hello StitchHub Operations Team,
 
-I would like to initiate a premium sourcing quote for custom merchandise. Please help us evaluate custom garment options, insulated drinkware, and tech organizing pouches.
+We would like to initiate an official corporate merchandise procurement inquiry. We are looking to evaluate custom catalog items adhering to your standard 4-week production schedule and 50-unit MOQ floor.
+
+Please provide available wholesale production slots, approved customization guidelines, and factory lead times.
 
 Best regards,
-[Enter Your Name]
-[Enter Company Name]`;
+Corporate Procurement Sourcing Team`;
 }
 
 /**
